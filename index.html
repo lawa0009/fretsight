@@ -5,73 +5,77 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FretSight</title>
 <script src="https://cdn.jsdelivr.net/npm/tone@14.7.77/build/Tone.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,600;1,300;1,600&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg:#0f0f0f; --surface:#181818; --surface2:#222222;
-    --border:rgba(255,255,255,0.08); --border2:rgba(255,255,255,0.18);
-    --text:#f0ece4; --muted:#888; --hint:#555;
-    --gold:#c9a84c; --gold-dim:rgba(201,168,76,0.15);
-    --green:#4caf82; --green-dim:rgba(76,175,130,0.15);
-    --red:#e05c5c; --blue:#5b9bd5; --blue-dim:rgba(91,155,213,0.15);
+    --bg:#1a1610; --surface:#242018; --surface2:#2e2a1e;
+    --border:rgba(255,220,140,0.1); --border2:rgba(255,220,140,0.22);
+    --text:#f0e8d8; --muted:rgba(240,232,216,0.55); --hint:rgba(240,232,216,0.35);
+    --gold:#c9a84c; --gold-bright:#e0c060; --gold-dim:rgba(201,168,76,0.15);
+    --green:#4caf82; --green-dim:rgba(76,175,130,0.12);
+    --red:#e05c5c; --red-dim:rgba(224,92,92,0.12);
+    --violet:#c9a84c; --violet-light:#e0c060; --violet-dim:rgba(201,168,76,0.12);
+    --rose:#e05c5c; --rose-dim:rgba(224,92,92,0.12);
+    --teal:#4caf82; --teal-dim:rgba(76,175,130,0.12);
     --radius:10px; --radius-sm:6px;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;min-height:100vh}
-  header{padding:1.5rem 2rem 1.2rem;border-bottom:1px solid var(--border);display:flex;align-items:baseline;gap:1rem;flex-wrap:wrap}
-  header h1{font-family:'Playfair Display',serif;font-size:22px;font-weight:400;letter-spacing:0.04em}
-  header .tagline{font-size:11px;color:var(--gold);font-family:'DM Mono',monospace;letter-spacing:0.12em;text-transform:uppercase}
-  header .sub{font-size:12px;color:var(--hint);font-family:'DM Mono',monospace}
-  main{max-width:880px;margin:0 auto;padding:1.5rem 1.5rem 3rem;display:flex;flex-direction:column;gap:1rem}
-  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem 1.5rem}
-  .card-title{font-size:11px;font-family:'DM Mono',monospace;letter-spacing:0.1em;color:var(--hint);text-transform:uppercase;margin-bottom:1rem}
+  body{background:var(--bg);color:var(--text);font-family:'Outfit',sans-serif;font-size:16px;min-height:100vh}
+  body::after{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");pointer-events:none;z-index:999;opacity:0.18;}
+  header{padding:1.5rem 2rem 1.2rem;border-bottom:1px solid var(--border);display:flex;align-items:baseline;gap:1rem;flex-wrap:wrap;background:rgba(26,22,16,0.95);backdrop-filter:blur(12px);position:sticky;top:0;z-index:10;}
+  header h1{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;letter-spacing:0.04em;color:var(--gold)}
+  header .tagline{font-size:11px;color:var(--gold);font-family:'Outfit',sans-serif;letter-spacing:0.12em;text-transform:uppercase;font-weight:600;opacity:0.7}
+  header .sub{font-size:12px;color:var(--hint);font-family:'Outfit',sans-serif}
+  main{max-width:880px;margin:0 auto;padding:1.5rem 1.5rem 3rem;display:flex;flex-direction:column;gap:1rem;position:relative;z-index:1;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem 1.5rem;box-shadow:0 2px 12px rgba(0,0,0,0.3);}
+  .card-title{font-size:11px;font-family:'Outfit',sans-serif;letter-spacing:0.1em;color:var(--hint);text-transform:uppercase;margin-bottom:1rem;font-weight:600}
   .tab-row{display:flex;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;width:fit-content}
-  .tab{padding:6px 16px;font-size:13px;cursor:pointer;background:transparent;color:var(--muted);border:none;font-family:'DM Sans',sans-serif;transition:all 0.15s}
+  .tab{padding:8px 18px;font-size:14px;cursor:pointer;background:transparent;color:var(--muted);border:none;font-family:'Outfit',sans-serif;transition:all 0.15s}
   .tab:hover{color:var(--text);background:var(--surface2)}
-  .tab.active{background:var(--surface2);color:var(--text)}
-  .btn{padding:7px 18px;border:1px solid var(--border2);border-radius:var(--radius-sm);background:transparent;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all 0.15s}
+  .tab.active{background:var(--surface2);color:var(--text);font-weight:500}
+  .btn{padding:9px 20px;border:1px solid var(--border2);border-radius:var(--radius-sm);background:transparent;color:var(--text);font-size:14px;font-family:'Outfit',sans-serif;cursor:pointer;transition:all 0.15s}
   .btn:hover{background:var(--surface2)}
   .btn:disabled{opacity:0.3;cursor:not-allowed}
-  .btn-gold{background:var(--gold);border-color:var(--gold);color:#0f0f0f;font-weight:500}
-  .btn-gold:hover{background:#d4b35e;border-color:#d4b35e}
+  .btn-gold{background:var(--violet);border-color:var(--violet);color:white;font-weight:600}
+  .btn-gold:hover{background:var(--violet-light);border-color:var(--violet-light)}
   .btn-gold:disabled{background:transparent;color:var(--muted);border-color:var(--border)}
-  .btn-danger{background:var(--red);border-color:var(--red);color:white}
+  .btn-danger{background:var(--rose-dim);border-color:var(--rose);color:var(--rose);font-weight:500}
   .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-  .hint{font-size:13px;color:var(--hint)}
-  textarea{width:100%;height:64px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:10px 12px;resize:vertical;margin-top:10px;outline:none;transition:border-color 0.15s}
-  textarea:focus{border-color:var(--border2)}
-  .badge{font-size:11px;font-family:'DM Mono',monospace;padding:3px 8px;border-radius:4px}
+  .hint{font-size:14px;color:var(--hint)}
+  textarea{width:100%;height:64px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:'Outfit',sans-serif;font-size:12px;padding:10px 12px;resize:vertical;margin-top:10px;outline:none;transition:border-color 0.15s}
+  textarea:focus{border-color:var(--gold)}
+  .badge{font-size:11px;font-family:'Outfit',sans-serif;padding:3px 8px;border-radius:4px;font-weight:600}
   .badge-green{background:var(--green-dim);color:var(--green)}
   .badge-gold{background:var(--gold-dim);color:var(--gold)}
-  .badge-blue{background:var(--blue-dim);color:var(--blue)}
+  .badge-blue{background:var(--gold-dim);color:var(--gold)}
   .teleprompter{display:flex;gap:6px;overflow-x:auto;padding:4px 0 10px;min-height:68px;align-items:center;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
-  .note-pill{min-width:52px;height:58px;border-radius:var(--radius-sm);border:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s}
-  .note-pill .pn{font-size:17px;font-weight:500;color:var(--muted);font-family:'DM Mono',monospace}
-  .note-pill .po{font-size:10px;color:var(--hint);margin-top:1px}
-  .note-pill.done{background:var(--green-dim);border-color:rgba(76,175,130,0.3)}
-  .note-pill.done .pn{color:var(--green)}
-  .note-pill.current{border:1.5px solid var(--gold);background:var(--gold-dim)}
-  .note-pill.current .pn{color:var(--gold)}
+  .note-pill{min-width:52px;height:58px;border-radius:var(--radius-sm);border:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s;background:var(--surface)}
+  .note-pill .pn{font-size:22px;font-weight:600;color:var(--muted);font-family:'Cormorant Garamond',serif}
+  .note-pill .po{font-size:12px;color:var(--hint);margin-top:1px;font-family:'Outfit',sans-serif}
+  .note-pill.done{background:var(--teal-dim);border-color:rgba(15,118,110,0.3)}
+  .note-pill.done .pn{color:var(--teal)}
+  .note-pill.current{border:1.5px solid var(--violet);background:var(--violet-dim)}
+  .note-pill.current .pn{color:var(--violet)}
   .note-pill.upcoming{opacity:0.3}
   .big-display{display:flex;align-items:center;gap:1.5rem;padding:1rem 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin:0.75rem 0}
-  .big-note{font-family:'Playfair Display',serif;font-size:52px;font-weight:400;color:var(--gold);min-width:96px;line-height:1}
-  .note-meta .pos{font-size:14px;color:var(--text);margin-bottom:4px}
-  .note-meta .det{font-size:12px;color:var(--hint);font-family:'DM Mono',monospace}
+  .big-note{font-family:'Cormorant Garamond',serif;font-size:72px;font-weight:600;color:var(--violet);min-width:120px;line-height:1}
+  .note-meta .pos{font-size:17px;color:var(--text);margin-bottom:4px;font-weight:500}
+  .note-meta .det{font-size:14px;color:var(--hint);font-family:'Outfit',sans-serif}
   .speed-row{display:flex;align-items:center;gap:10px}
   input[type=range]{-webkit-appearance:none;height:3px;background:var(--border2);border-radius:2px;outline:none;width:90px}
-  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--gold);cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--violet);cursor:pointer}
   .rec-dot{width:8px;height:8px;border-radius:50%;background:var(--hint);transition:background 0.2s;flex-shrink:0}
-  .rec-dot.on{background:var(--red);animation:blink 1s infinite}
+  .rec-dot.on{background:var(--rose);animation:blink 1s infinite}
   @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
   .rec-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;min-height:26px}
-  .rec-tag{font-size:12px;font-family:'DM Mono',monospace;padding:2px 8px;border-radius:4px;background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+  .rec-tag{font-size:12px;font-family:'Outfit',sans-serif;padding:2px 8px;border-radius:4px;background:var(--gold-dim);color:var(--gold);border:1px solid rgba(201,168,76,0.25);font-weight:500}
   .controls-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:0.75rem}
-  .prog{font-size:12px;font-family:'DM Mono',monospace;color:var(--hint);margin-left:auto}
+  .prog{font-size:12px;font-family:'Outfit',sans-serif;color:var(--hint);margin-left:auto}
   #loadingBar{height:3px;background:var(--border);border-radius:2px;margin-bottom:10px;overflow:hidden;display:none}
-  #loadingFill{height:100%;background:var(--gold);width:0%;transition:width 0.3s;border-radius:2px}
-  .sound-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-family:'DM Mono',monospace;padding:3px 8px;border-radius:4px;background:var(--gold-dim);color:var(--gold)}
-  .sound-badge.loading{background:rgba(91,155,213,0.15);color:var(--blue)}
-  .sound-badge.fallback{background:rgba(136,136,136,0.15);color:var(--muted)}
+  #loadingFill{height:100%;background:var(--violet);width:0%;transition:width 0.3s;border-radius:2px}
+  .sound-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-family:'Outfit',sans-serif;padding:3px 8px;border-radius:4px;background:var(--gold-dim);color:var(--gold);font-weight:500}
+  .sound-badge.loading{background:var(--violet-dim);color:var(--violet)}
+  .sound-badge.fallback{background:rgba(28,22,36,0.06);color:var(--muted)}
 </style>
 </head>
 <body>
@@ -120,6 +124,14 @@
     </div>
   </div>
 
+  <!-- Fretboard card — second block -->
+  <div class="card" style="padding:0.75rem 1.5rem">
+    <div style="font-size:14px;font-weight:600;color:var(--gold);margin-bottom:10px;letter-spacing:0.06em;text-transform:uppercase;font-family:'Outfit',sans-serif;opacity:0.8">Fretboard — best position highlighted</div>
+    <div style="overflow-x:auto;position:relative">
+      <svg id="neck" viewBox="0 0 820 200" style="display:block;width:100%;min-width:500px;overflow:visible" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+  </div>
+
   <!-- Practice card -->
   <div class="card">
     <div class="row" style="margin-bottom:1rem;justify-content:space-between;flex-wrap:wrap;gap:10px">
@@ -157,14 +169,6 @@
     </div>
   </div>
 
-  <!-- Fretboard card -->
-  <div class="card" style="padding:0.75rem 1.5rem">
-    <div class="card-title">Fretboard — best position</div>
-    <div style="overflow-x:auto;position:relative">
-      <svg id="neck" viewBox="0 0 700 165" style="display:block;width:100%;min-width:420px;overflow:visible" xmlns="http://www.w3.org/2000/svg"></svg>
-    </div>
-  </div>
-
   <!-- Sound info -->
   <div style="font-size:12px;color:var(--hint);text-align:center;padding:0.5rem 0">
     FretSight · Sound powered by <span style="color:var(--gold)">Tone.js</span> with real acoustic guitar samples &mdash;
@@ -178,13 +182,16 @@ const NOTES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const EH={'Db':'C#','Eb':'D#','Gb':'F#','Ab':'G#','Bb':'A#','Cb':'B','Fb':'E','B#':'C','E#':'F'};
 const OPEN_MIDI=[64,59,55,50,45,40];
 const SNAMES=['E4','B3','G3','D3','A2','E2'];
-const STR_Y=[22,42,62,82,102,122];
-const NUT_X=68;
-const FRET_X=[68,116,164,212,260,308,356,404,452,500,548,596,640];
+
+// Layout — headstock from x=0..110, nut at 120, frets from 120 onward
+const HEAD_W=110;   // headstock width
+const NUT_X=120;    // nut position
+const STR_Y=[30,52,74,96,118,140];  // 6 strings, more spread for bigger fretboard
+const FRET_X=[120,172,224,276,328,380,432,484,536,588,640,692,744,796]; // 13 frets (0=nut,1-12)
 
 function fretCX(s,f){
-  if(f===0)return NUT_X-14;
-  return((f===1?NUT_X:FRET_X[f-2])+FRET_X[f-1])/2;
+  if(f===0)return NUT_X-16; // open string — between nut and headstock
+  return(FRET_X[f-1]+FRET_X[f])/2; // centre between previous and current fret
 }
 
 function buildBestPos(){
@@ -325,13 +332,13 @@ function buildFingerSVG(cx,cy){
   const fx=cx-fw/2,fy=cy-fh-2;
   const kY=fy+fh*0.45;
   return `
-    <ellipse id="fShadow" cx="${cx}" cy="${cy+3}" rx="13" ry="6" fill="rgba(201,168,76,0.18)"/>
+    <ellipse id="fShadow" cx="${cx}" cy="${cy+3}" rx="13" ry="6" fill="rgba(109,40,217,0.15)"/>
     <rect x="${fx}" y="${fy+tipR}" width="${fw}" height="${fh-tipR}" rx="3" fill="#f5c89a" stroke="#c8855a" stroke-width="1.2"/>
     <circle cx="${cx}" cy="${fy+tipR}" r="${tipR}" fill="#f5c89a" stroke="#c8855a" stroke-width="1.2"/>
     <line x1="${fx+4}" y1="${kY}" x2="${fx+fw-4}" y2="${kY}" stroke="#c8855a" stroke-width="0.9" opacity="0.5"/>
     <rect x="${fx+3}" y="${fy+tipR*0.25}" width="${fw-6}" height="${fh*0.16}" rx="5" fill="#f0b070" opacity="0.45"/>
     <ellipse cx="${cx-2}" cy="${fy+tipR*0.65}" rx="2.5" ry="2" fill="#e8a060" opacity="0.6"/>
-    <ellipse id="fGlow" cx="${cx}" cy="${cy}" rx="16" ry="12" fill="#c9a84c" opacity="0"/>
+    <ellipse id="fGlow" cx="${cx}" cy="${cy}" rx="16" ry="12" fill="#6d28d9" opacity="0"/>
   `;
 }
 
@@ -350,30 +357,326 @@ function stopGlowLoop(){
   if(fingerEl){const gw=fingerEl.querySelector('#fGlow');if(gw)gw.setAttribute('opacity','0');}
 }
 
-// ── Fretboard ────────────────────────────────────────────────────────────
+// ── Photorealistic Fretboard with Headstock ──────────────────────────────
 function drawFretboard(noteKey,animate){
   const svg=document.getElementById('neck');
+  const NECK_X=NUT_X, NECK_W=FRET_X[12]-NUT_X, NECK_H=130, Y0=20;
   let h='';
-  h+=`<rect x="${NUT_X}" y="10" width="${FRET_X[12]-NUT_X}" height="124" rx="2" fill="#1a1510" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>`;
-  h+=`<rect x="${NUT_X-4}" y="10" width="5" height="124" fill="#c9a84c" opacity="0.8"/>`;
-  for(let f=0;f<13;f++)h+=`<line x1="${FRET_X[f]}" y1="10" x2="${FRET_X[f]}" y2="134" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>`;
-  for(const m of[3,5,7,9,12]){
-    const fx=((m===1?NUT_X:FRET_X[m-2])+FRET_X[m-1])/2;
-    h+=`<circle cx="${fx}" cy="72" r="4" fill="rgba(255,255,255,0.1)"/>`;
-    h+=`<text x="${fx}" y="152" text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.3)">${m}</text>`;
+
+  // ── Defs ──
+  h+=`<defs>
+    <linearGradient id="woodGrain" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#2c1a0e"/>
+      <stop offset="8%"   stop-color="#3d2512"/>
+      <stop offset="18%"  stop-color="#2a1709"/>
+      <stop offset="28%"  stop-color="#3f2814"/>
+      <stop offset="38%"  stop-color="#2e1c0d"/>
+      <stop offset="50%"  stop-color="#4a2f18"/>
+      <stop offset="62%"  stop-color="#2c1a0e"/>
+      <stop offset="72%"  stop-color="#3a2310"/>
+      <stop offset="82%"  stop-color="#281608"/>
+      <stop offset="92%"  stop-color="#3d2512"/>
+      <stop offset="100%" stop-color="#2c1a0e"/>
+    </linearGradient>
+    <linearGradient id="woodSheen" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="rgba(255,220,160,0.14)"/>
+      <stop offset="30%"  stop-color="rgba(255,200,120,0.04)"/>
+      <stop offset="70%"  stop-color="rgba(0,0,0,0.06)"/>
+      <stop offset="100%" stop-color="rgba(0,0,0,0.2)"/>
+    </linearGradient>
+    <linearGradient id="headGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#1a0f07"/>
+      <stop offset="40%"  stop-color="#2a1a0c"/>
+      <stop offset="70%"  stop-color="#231408"/>
+      <stop offset="100%" stop-color="#1a0f07"/>
+    </linearGradient>
+    <linearGradient id="headSheen" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="rgba(255,200,100,0.12)"/>
+      <stop offset="50%"  stop-color="rgba(255,180,60,0.04)"/>
+      <stop offset="100%" stop-color="rgba(0,0,0,0.25)"/>
+    </linearGradient>
+    <linearGradient id="nutGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#f5f0e0"/>
+      <stop offset="40%"  stop-color="#ddd5b0"/>
+      <stop offset="100%" stop-color="#b8a870"/>
+    </linearGradient>
+    <linearGradient id="fretWire" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#e8e4d8"/>
+      <stop offset="35%"  stop-color="#c8c4b4"/>
+      <stop offset="60%"  stop-color="#a8a498"/>
+      <stop offset="100%" stop-color="#888478"/>
+    </linearGradient>
+    <linearGradient id="edgeLG" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="rgba(255,200,120,0.22)"/>
+      <stop offset="50%"  stop-color="rgba(255,180,80,0.06)"/>
+      <stop offset="100%" stop-color="rgba(0,0,0,0.28)"/>
+    </linearGradient>
+    <radialGradient id="inlayGrad" cx="50%" cy="35%" r="60%">
+      <stop offset="0%"   stop-color="#f0ebe0"/>
+      <stop offset="60%"  stop-color="#d4cdb8"/>
+      <stop offset="100%" stop-color="#a89f88"/>
+    </radialGradient>
+    <radialGradient id="pegGrad" cx="40%" cy="30%" r="65%">
+      <stop offset="0%"   stop-color="#c8c4b0"/>
+      <stop offset="100%" stop-color="#707060"/>
+    </radialGradient>
+    <filter id="fretShadow" x="-30%" y="-50%" width="160%" height="200%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.8" flood-color="rgba(0,0,0,0.55)"/>
+    </filter>
+  </defs>`;
+
+  // ═══════════════════════════════════════════
+  // HEADSTOCK SILHOUETTE
+  // ═══════════════════════════════════════════
+  const HX=2, HY=Y0-4, HH=NECK_H+8, HW=HEAD_W-6;
+  // Headstock body — slightly wider than neck, tapers into neck
+  const headPath=`M${HX},${HY+12}
+    Q${HX},${HY} ${HX+14},${HY}
+    L${HX+HW-14},${HY}
+    Q${HX+HW},${HY} ${HX+HW},${HY+12}
+    L${HX+HW+6},${HY+HH-10}
+    Q${HX+HW+6},${HY+HH} ${HX+HW+6-10},${HY+HH}
+    L${HX-6+10},${HY+HH}
+    Q${HX-6},${HY+HH} ${HX-6},${HY+HH-10}
+    Z`;
+  h+=`<path d="${headPath}" fill="url(#headGrad)" stroke="#0a0604" stroke-width="1.5"/>`;
+  h+=`<path d="${headPath}" fill="url(#headSheen)" opacity="0.8"/>`;
+
+  // Headstock logo area — subtle brand name
+  h+=`<text x="${HX+HW/2+2}" y="${HY+HH/2+5}" text-anchor="middle" font-size="13" fill="rgba(201,168,76,0.5)" font-family="Cormorant Garamond,serif" font-weight="600" letter-spacing="2">FretSight</text>`;
+
+  // Tuning peg holes (3 per side, simplified)
+  const pegY=[HY+18, HY+HH/2, HY+HH-18];
+  pegY.forEach(py=>{
+    // left side peg
+    h+=`<circle cx="${HX+8}" cy="${py}" r="7" fill="url(#pegGrad)" stroke="#555" stroke-width="0.8"/>`;
+    h+=`<circle cx="${HX+8}" cy="${py}" r="3.5" fill="rgba(255,255,255,0.15)"/>`;
+    h+=`<rect x="${HX+14}" y="${py-1.5}" width="10" height="3" rx="1.5" fill="#888" stroke="#555" stroke-width="0.5"/>`;
+    // right side peg
+    h+=`<circle cx="${HX+HW-8}" cy="${py}" r="7" fill="url(#pegGrad)" stroke="#555" stroke-width="0.8"/>`;
+    h+=`<circle cx="${HX+HW-8}" cy="${py}" r="3.5" fill="rgba(255,255,255,0.15)"/>`;
+    h+=`<rect x="${HX+HW-24}" y="${py-1.5}" width="10" height="3" rx="1.5" fill="#888" stroke="#555" stroke-width="0.5"/>`;
+  });
+
+  // ═══════════════════════════════════════════
+  // NECK + FRETBOARD BODY
+  // ═══════════════════════════════════════════
+  // Binding edges
+  h+=`<rect x="${NECK_X}" y="${Y0-4}" width="${NECK_W}" height="${NECK_H+8}" rx="2" fill="#1a0e06" stroke="#7a5c30" stroke-width="1.5"/>`;
+  // Wood body
+  h+=`<rect x="${NECK_X}" y="${Y0}" width="${NECK_W}" height="${NECK_H}" fill="url(#woodGrain)"/>`;
+
+  // Wood grain streaks
+  const grains=[0.05,0.11,0.17,0.24,0.31,0.38,0.45,0.52,0.58,0.64,0.70,0.76,0.83,0.89,0.95];
+  grains.forEach((pct,i)=>{
+    const x=NECK_X+NECK_W*pct;
+    const op=(0.04+Math.abs(Math.sin(i*1.7))*0.03).toFixed(3);
+    h+=`<line x1="${x}" y1="${Y0}" x2="${x+Math.sin(i)*2}" y2="${Y0+NECK_H}" stroke="rgba(0,0,0,${op})" stroke-width="${(0.5+Math.sin(i*0.9)*0.4).toFixed(1)}"/>`;
+  });
+
+  // Gloss sheen
+  h+=`<rect x="${NECK_X}" y="${Y0}" width="${NECK_W}" height="${NECK_H}" fill="url(#woodSheen)"/>`;
+  h+=`<rect x="${NECK_X}" y="${Y0}" width="${NECK_W}" height="${NECK_H}" fill="url(#edgeLG)" opacity="0.5"/>`;
+
+  // ═══════════════════════════════════════════
+  // FRET WIRES (frets 1-12)
+  // ═══════════════════════════════════════════
+  for(let f=1;f<=12;f++){
+    const x=FRET_X[f];
+    h+=`<rect x="${x-1.4}" y="${Y0-1}" width="2.8" height="${NECK_H+2}" fill="url(#fretWire)" filter="url(#fretShadow)" rx="1"/>`;
+    h+=`<line x1="${x-0.5}" y1="${Y0}" x2="${x-0.5}" y2="${Y0+NECK_H}" stroke="rgba(255,255,255,0.32)" stroke-width="0.6"/>`;
   }
-  const sc=['rgba(255,255,255,0.5)','rgba(255,255,255,0.45)','rgba(255,255,255,0.4)','rgba(255,240,200,0.4)','rgba(255,240,200,0.35)','rgba(255,240,200,0.3)'];
-  const sw=[0.8,1.0,1.2,1.5,1.8,2.1];
+
+  // ═══════════════════════════════════════════
+  // NUT
+  // ═══════════════════════════════════════════
+  h+=`<rect x="${NUT_X-5}" y="${Y0-3}" width="6" height="${NECK_H+6}" rx="1" fill="url(#nutGrad)" stroke="#c8b878" stroke-width="0.8"/>`;
+  h+=`<line x1="${NUT_X-4}" y1="${Y0}" x2="${NUT_X-4}" y2="${Y0+NECK_H}" stroke="rgba(255,255,255,0.55)" stroke-width="0.9"/>`;
+
+  // ═══════════════════════════════════════════
+  // POSITION INLAYS
+  // ═══════════════════════════════════════════
+  [3,5,7,9,12].forEach(m=>{
+    const fx=(FRET_X[m-1]+FRET_X[m])/2;
+    const midY=Y0+NECK_H/2;
+    if(m===12){
+      h+=`<circle cx="${fx}" cy="${midY-22}" r="6" fill="url(#inlayGrad)" stroke="rgba(0,0,0,0.3)" stroke-width="0.5"/>`;
+      h+=`<circle cx="${fx}" cy="${midY-22}" r="2.5" fill="rgba(255,255,255,0.3)"/>`;
+      h+=`<circle cx="${fx}" cy="${midY+22}" r="6" fill="url(#inlayGrad)" stroke="rgba(0,0,0,0.3)" stroke-width="0.5"/>`;
+      h+=`<circle cx="${fx}" cy="${midY+22}" r="2.5" fill="rgba(255,255,255,0.3)"/>`;
+    } else {
+      h+=`<circle cx="${fx}" cy="${midY}" r="6" fill="url(#inlayGrad)" stroke="rgba(0,0,0,0.3)" stroke-width="0.5"/>`;
+      h+=`<circle cx="${fx}" cy="${midY}" r="2.5" fill="rgba(255,255,255,0.3)"/>`;
+    }
+    // Fret number below neck
+    h+=`<text x="${fx}" y="${Y0+NECK_H+18}" text-anchor="middle" font-size="12" fill="rgba(28,22,36,0.5)" font-family="Outfit,sans-serif" font-weight="500">${m}</text>`;
+  });
+
+  // ═══════════════════════════════════════════
+  // STRINGS
+  // ═══════════════════════════════════════════
+  const stringData=[
+    {base:'#d4d0c4',hi:'#f0ece0',w:1.1},
+    {base:'#ccc8ba',hi:'#eae6d8',w:1.4},
+    {base:'#c4c0b0',hi:'#e0dcc8',w:1.8},
+    {base:'#c4aa65',hi:'#d8c078',w:2.4},
+    {base:'#b49a58',hi:'#c8b068',w:3.0},
+    {base:'#a48848',hi:'#b89858',w:3.8},
+  ];
   for(let s=0;s<6;s++){
-    h+=`<line x1="${NUT_X}" y1="${STR_Y[s]}" x2="${FRET_X[12]}" y2="${STR_Y[s]}" stroke="${sc[s]}" stroke-width="${sw[s]}"/>`;
-    h+=`<text x="52" y="${STR_Y[s]+4}" text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.3)">${SNAMES[s]}</text>`;
+    const sd=stringData[s], y=STR_Y[s];
+    const strStart=HX+HW/2; // strings start from headstock centre
+    h+=`<line x1="${strStart}" y1="${y}" x2="${FRET_X[12]}" y2="${y}" stroke="rgba(0,0,0,0.4)" stroke-width="${sd.w+0.6}"/>`;
+    h+=`<line x1="${strStart}" y1="${y}" x2="${FRET_X[12]}" y2="${y}" stroke="${sd.base}" stroke-width="${sd.w}"/>`;
+    h+=`<line x1="${strStart}" y1="${y-sd.w*0.28}" x2="${FRET_X[12]}" y2="${y-sd.w*0.28}" stroke="${sd.hi}" stroke-width="${sd.w*0.32}" opacity="0.7"/>`;
+    // String label — larger font
+    h+=`<text x="${HX+HW/2-8}" y="${y+5}" text-anchor="end" font-size="12" fill="rgba(28,22,36,0.55)" font-family="Outfit,sans-serif" font-weight="600">${SNAMES[s]}</text>`;
   }
+
   svg.innerHTML=h;
+
   if(noteKey&&BEST[noteKey]){
     const{s,f}=BEST[noteKey];
     placeFingerAt(fretCX(s,f),STR_Y[s]);
   }
 }
+
+  // ── Defs: wood grain gradients, fret wire, string textures ──
+  h+=`<defs>
+    <linearGradient id="woodGrain" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#2c1a0e"/>
+      <stop offset="8%"   stop-color="#3d2512"/>
+      <stop offset="18%"  stop-color="#2a1709"/>
+      <stop offset="28%"  stop-color="#3f2814"/>
+      <stop offset="38%"  stop-color="#2e1c0d"/>
+      <stop offset="50%"  stop-color="#4a2f18"/>
+      <stop offset="62%"  stop-color="#2c1a0e"/>
+      <stop offset="72%"  stop-color="#3a2310"/>
+      <stop offset="82%"  stop-color="#281608"/>
+      <stop offset="92%"  stop-color="#3d2512"/>
+      <stop offset="100%" stop-color="#2c1a0e"/>
+    </linearGradient>
+    <linearGradient id="woodSheen" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="rgba(255,220,160,0.12)"/>
+      <stop offset="30%"  stop-color="rgba(255,200,120,0.04)"/>
+      <stop offset="60%"  stop-color="rgba(0,0,0,0.08)"/>
+      <stop offset="100%" stop-color="rgba(0,0,0,0.18)"/>
+    </linearGradient>
+    <linearGradient id="nutGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#f5f0e0"/>
+      <stop offset="40%"  stop-color="#ddd5b0"/>
+      <stop offset="100%" stop-color="#b8a870"/>
+    </linearGradient>
+    <linearGradient id="fretWire" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#e8e4d8"/>
+      <stop offset="35%"  stop-color="#c8c4b4"/>
+      <stop offset="60%"  stop-color="#a8a498"/>
+      <stop offset="100%" stop-color="#888478"/>
+    </linearGradient>
+    <linearGradient id="edgeLG" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="rgba(255,200,120,0.25)"/>
+      <stop offset="50%"  stop-color="rgba(255,180,80,0.08)"/>
+      <stop offset="100%" stop-color="rgba(0,0,0,0.3)"/>
+    </linearGradient>
+    <filter id="fretShadow" x="-20%" y="-50%" width="140%" height="200%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.8" flood-color="rgba(0,0,0,0.5)"/>
+    </filter>
+    <filter id="stringShadow">
+      <feDropShadow dx="0" dy="0.5" stdDeviation="0.5" flood-color="rgba(0,0,0,0.6)"/>
+    </filter>
+    <radialGradient id="inlayGrad" cx="50%" cy="35%" r="60%">
+      <stop offset="0%"   stop-color="#f0ebe0"/>
+      <stop offset="60%"  stop-color="#d4cdb8"/>
+      <stop offset="100%" stop-color="#a89f88"/>
+    </radialGradient>
+    <radialGradient id="violetGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="rgba(109,40,217,0.7)"/>
+      <stop offset="100%" stop-color="rgba(109,40,217,0)"/>
+    </radialGradient>
+  </defs>`;
+
+  // ── Body edges (binding) ──
+  h+=`<rect x="${NUT_X-1}" y="${Y0-3}" width="${W+2}" height="${H+6}" rx="4" fill="#1a0e06" stroke="#7a5c30" stroke-width="1.5"/>`;
+
+  // ── Wood body ──
+  h+=`<rect x="${NUT_X}" y="${Y0}" width="${W}" height="${H}" fill="url(#woodGrain)"/>`;
+
+  // ── Wood grain lines (vertical streaks) ──
+  const grainLines=[0.06,0.13,0.19,0.27,0.34,0.41,0.48,0.55,0.61,0.68,0.74,0.81,0.88,0.94];
+  grainLines.forEach((pct,i)=>{
+    const x=NUT_X+W*pct;
+    const op=(0.04+Math.sin(i*1.3)*0.03).toFixed(3);
+    const w=(0.6+Math.random()*0.8).toFixed(1);
+    h+=`<line x1="${x}" y1="${Y0}" x2="${x+Math.sin(i)*3}" y2="${Y0+H}" stroke="rgba(0,0,0,${op})" stroke-width="${w}"/>`;
+  });
+
+  // ── Gloss sheen overlay ──
+  h+=`<rect x="${NUT_X}" y="${Y0}" width="${W}" height="${H}" fill="url(#woodSheen)"/>`;
+
+  // ── Edge lighting ──
+  h+=`<rect x="${NUT_X}" y="${Y0}" width="${W}" height="${H}" fill="url(#edgeLG)" opacity="0.6"/>`;
+
+  // ── Fret wires ──
+  for(let f=0;f<13;f++){
+    const x=FRET_X[f];
+    h+=`<rect x="${x-1.2}" y="${Y0-1}" width="2.4" height="${H+2}" fill="url(#fretWire)" filter="url(#fretShadow)" rx="1"/>`;
+    // fret wire highlight
+    h+=`<line x1="${x-0.4}" y1="${Y0}" x2="${x-0.4}" y2="${Y0+H}" stroke="rgba(255,255,255,0.35)" stroke-width="0.5"/>`;
+  }
+
+  // ── Nut (bone coloured) ──
+  h+=`<rect x="${NUT_X-5}" y="${Y0-2}" width="6" height="${H+4}" rx="1" fill="url(#nutGrad)" stroke="#c8b878" stroke-width="0.5"/>`;
+  h+=`<line x1="${NUT_X-4.5}" y1="${Y0}" x2="${NUT_X-4.5}" y2="${Y0+H}" stroke="rgba(255,255,255,0.5)" stroke-width="0.8"/>`;
+
+  // ── Position inlays (dots at 3,5,7,9 and double at 12) ──
+  const inlayFrets=[3,5,7,9,12];
+  inlayFrets.forEach(m=>{
+    const fx=((m===1?NUT_X:FRET_X[m-2])+FRET_X[m-1])/2;
+    const midY=Y0+H/2;
+    if(m===12){
+      // double dot
+      h+=`<circle cx="${fx}" cy="${midY-18}" r="5.5" fill="url(#inlayGrad)" stroke="rgba(0,0,0,0.3)" stroke-width="0.5"/>`;
+      h+=`<circle cx="${fx}" cy="${midY-18}" r="2.5" fill="rgba(255,255,255,0.3)"/>`;
+      h+=`<circle cx="${fx}" cy="${midY+18}" r="5.5" fill="url(#inlayGrad)" stroke="rgba(0,0,0,0.3)" stroke-width="0.5"/>`;
+      h+=`<circle cx="${fx}" cy="${midY+18}" r="2.5" fill="rgba(255,255,255,0.3)"/>`;
+    } else {
+      h+=`<circle cx="${fx}" cy="${midY}" r="5.5" fill="url(#inlayGrad)" stroke="rgba(0,0,0,0.3)" stroke-width="0.5"/>`;
+      h+=`<circle cx="${fx}" cy="${midY}" r="2.5" fill="rgba(255,255,255,0.3)"/>`;
+    }
+    // fret number below
+    h+=`<text x="${fx}" y="${Y0+H+14}" text-anchor="middle" font-size="9" fill="rgba(28,22,36,0.45)" font-family="Outfit,sans-serif">${m}</text>`;
+  });
+
+  // ── Strings (realistic wound/plain with sheen) ──
+  const stringColors=[
+    {base:'#d4d0c4',hi:'#f0ece0',sh:'rgba(0,0,0,0.5)',w:1.0},   // e (plain)
+    {base:'#ccc8ba',hi:'#eae6d8',sh:'rgba(0,0,0,0.5)',w:1.3},   // B (plain)
+    {base:'#c4c0b0',hi:'#e0dcc8',sh:'rgba(0,0,0,0.5)',w:1.7},   // G (plain)
+    {base:'#b8a870',hi:'#d4c080',sh:'rgba(0,0,0,0.6)',w:2.2},   // D (wound)
+    {base:'#a89860',hi:'#c4b070',sh:'rgba(0,0,0,0.6)',w:2.8},   // A (wound)
+    {base:'#988850',hi:'#b4a060',sh:'rgba(0,0,0,0.7)',w:3.5},   // E (wound)
+  ];
+  for(let s=0;s<6;s++){
+    const sc=stringColors[s], y=STR_Y[s];
+    // string shadow
+    h+=`<line x1="${NUT_X}" y1="${y+1}" x2="${FRET_X[12]}" y2="${y+1}" stroke="rgba(0,0,0,0.4)" stroke-width="${sc.w+0.5}"/>`;
+    // string body
+    h+=`<line x1="${NUT_X}" y1="${y}" x2="${FRET_X[12]}" y2="${y}" stroke="${sc.base}" stroke-width="${sc.w}"/>`;
+    // string highlight (top sheen)
+    h+=`<line x1="${NUT_X}" y1="${y-sc.w*0.25}" x2="${FRET_X[12]}" y2="${y-sc.w*0.25}" stroke="${sc.hi}" stroke-width="${sc.w*0.3}" opacity="0.7"/>`;
+    // string label
+    h+=`<text x="50" y="${y+4}" text-anchor="middle" font-size="9" fill="rgba(28,22,36,0.5)" font-family="Outfit,sans-serif" font-weight="500">${SNAMES[s]}</text>`;
+  }
+
+  svg.innerHTML=h;
+
+  // Place finger after redraw
+  if(noteKey&&BEST[noteKey]){
+    const{s,f}=BEST[noteKey];
+    placeFingerAt(fretCX(s,f),STR_Y[s]);
+  }
+}
+
 
 // ── Melody state ─────────────────────────────────────────────────────────
 let melody=[],idx=0,playing=false,mode='auto',speed=100;
@@ -494,26 +797,51 @@ function finishPractice(){
 }
 
 function autoCorrelate(buf,sr){
+  // RMS check — lowered threshold to catch softer playing
   let rms=0;for(let i=0;i<buf.length;i++)rms+=buf[i]*buf[i];rms=Math.sqrt(rms/buf.length);
-  if(rms<0.015)return -1;
+  if(rms<0.008)return -1; // was 0.015 — now catches quieter notes
+
+  // Clip detection — trim silence from edges
   let r1=0,r2=buf.length-1;
-  for(let i=0;i<buf.length/2;i++){if(Math.abs(buf[i])<0.2){r1=i;break;}}
-  for(let i=1;i<buf.length/2;i++){if(Math.abs(buf[buf.length-i])<0.2){r2=buf.length-i;break;}}
+  for(let i=0;i<buf.length/2;i++){if(Math.abs(buf[i])<0.15){r1=i;break;}}
+  for(let i=1;i<buf.length/2;i++){if(Math.abs(buf[buf.length-i])<0.15){r2=buf.length-i;break;}}
   const b2=buf.slice(r1,r2);const sz=b2.length;if(sz<2)return -1;
+
+  // Autocorrelation
   const c=new Float32Array(sz).fill(0);
   for(let i=0;i<sz;i++)for(let j=0;j<sz-i;j++)c[i]+=b2[j]*b2[j+i];
+
+  // Find first dip then peak
   let d=0;while(d<sz-1&&c[d]>c[d+1])d++;
   let mx=-1,mp=-1;for(let i=d;i<sz;i++)if(c[i]>mx){mx=c[i];mp=i;}
   if(mp<1||mp>=sz-1)return -1;
+
+  // Parabolic interpolation for better precision
   let T0=mp;
   const x1=c[T0-1],x2=c[T0],x3=c[T0+1];
   const a=(x1+x3-2*x2)/2,bv=(x3-x1)/2;if(a)T0-=bv/(2*a);
-  return sr/T0;
+
+  const freq=sr/T0;
+
+  // Sanity check — guitar range E2 (82Hz) to E5 (659Hz) with headroom
+  if(freq<75||freq>1400)return -1;
+  return freq;
 }
+
 function startWaitMic(){
   if(waitStream)return;
-  navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
-    waitCtx=new AudioContext();waitAn=waitCtx.createAnalyser();waitAn.fftSize=2048;
+  navigator.mediaDevices.getUserMedia({
+    audio:{
+      echoCancellation:false,  // off — hurts pitch detection
+      noiseSuppression:false,  // off — removes harmonics
+      autoGainControl:false,   // off — causes level jumps
+      sampleRate:44100
+    }
+  }).then(stream=>{
+    waitCtx=new AudioContext({latencyHint:'interactive'});
+    waitAn=waitCtx.createAnalyser();
+    waitAn.fftSize=4096;       // larger buffer = better low-freq detection
+    waitAn.smoothingTimeConstant=0.5; // some smoothing reduces false triggers
     waitCtx.createMediaStreamSource(stream).connect(waitAn);
     waitStream=stream;waitLoop();
   }).catch(()=>{});
@@ -526,16 +854,17 @@ function stopWaitMic(){
 }
 function waitLoop(){
   if(!waitStream||!playing||mode!=='wait')return;
-  const buf=new Float32Array(2048);waitAn.getFloatTimeDomainData(buf);
-  const freq=autoCorrelate(buf,waitAn?waitCtx.sampleRate:44100);
-  if(freq>60&&freq<1400&&idx<melody.length){
+  const buf=new Float32Array(4096); // larger buffer matches new fftSize
+  waitAn.getFloatTimeDomainData(buf);
+  const freq=autoCorrelate(buf,waitCtx.sampleRate);
+  if(freq>75&&freq<1400&&idx<melody.length){
     const dm=Math.round(12*Math.log2(freq/440)+69);
     const dn=NOTES[dm%12],dOct=Math.floor(dm/12)-1;
     document.getElementById('detNote').textContent='hearing: '+dn+dOct;
     if(dm===melody[idx].midi){
       document.getElementById('matchBadge').innerHTML='<span class="badge badge-green">Match!</span>';
       stopWaitMic();
-      setTimeout(()=>{document.getElementById('matchBadge').innerHTML='';advanceNote();},400);
+      setTimeout(()=>{document.getElementById('matchBadge').innerHTML='';advanceNote();},300);
       return;
     }
   }
@@ -544,14 +873,19 @@ function waitLoop(){
 
 function toggleRecord(){if(isRec)stopRecord();else startRecord();}
 function startRecord(){
-  navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
-    recCtx=new AudioContext();recAn=recCtx.createAnalyser();recAn.fftSize=2048;
+  navigator.mediaDevices.getUserMedia({
+    audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false,sampleRate:44100}
+  }).then(stream=>{
+    recCtx=new AudioContext({latencyHint:'interactive'});
+    recAn=recCtx.createAnalyser();
+    recAn.fftSize=4096;
+    recAn.smoothingTimeConstant=0.4;
     recCtx.createMediaStreamSource(stream).connect(recAn);
     micStream=stream;isRec=true;
     document.getElementById('recBtn').textContent='Stop mic';
     document.getElementById('recBtn').className='btn btn-danger';
     document.getElementById('recDot').classList.add('on');
-    document.getElementById('recStatus').textContent='Recording — play notes slowly, one at a time';
+    document.getElementById('recStatus').textContent='Recording — play each note clearly, hold ~0.5s';
     recLoop();
   }).catch(()=>{document.getElementById('recStatus').textContent='Microphone access denied';});
 }
@@ -572,11 +906,11 @@ function stopRecord(){
 }
 function recLoop(){
   if(!isRec)return;
-  const buf=new Float32Array(2048);recAn.getFloatTimeDomainData(buf);
+  const buf=new Float32Array(4096);recAn.getFloatTimeDomainData(buf);
   const freq=autoCorrelate(buf,recCtx.sampleRate);
-  if(freq>60&&freq<1400){
+  if(freq>75&&freq<1400){
     const midi=Math.round(12*Math.log2(freq/440)+69),now=Date.now();
-    if(midi!==lastRecMidi&&(now-lastRecTime)>350){
+    if(midi!==lastRecMidi&&(now-lastRecTime)>250){ // reduced from 350ms → 250ms
       lastRecMidi=midi;lastRecTime=now;
       const name=NOTES[midi%12],oct=Math.floor(midi/12)-1;
       melody.push({name,oct,midi});
