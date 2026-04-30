@@ -110,6 +110,11 @@
         <span id="recStatus" class="hint">Not recording</span>
       </div>
       <div class="rec-tags" id="recTags"></div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" onclick="downloadLog()">⬇ Download log</button>
+        <span class="hint" id="logCount">0 entries</span>
+        <span id="liveFreq" style="margin-left:auto;font-family:'Cormorant Garamond',serif;font-size:24px;color:var(--gold);min-width:120px;text-align:right;letter-spacing:0.04em;transition:opacity 0.2s;opacity:0">—</span>
+      </div>
     </div>
 
     <div id="importPanel" style="display:none">
@@ -174,6 +179,7 @@
     FretSight · Sound powered by <span style="color:var(--gold)">Tone.js</span> with real acoustic guitar samples &mdash;
     <span id="soundInfo">loading...</span>
   </div>
+  <div style="font-size:11px;color:var(--hint);text-align:center;padding:0.25rem 0 1rem;opacity:0.5;font-family:'Outfit',sans-serif" id="versionFooter"></div>
 
 </main>
 
@@ -182,6 +188,9 @@ const NOTES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const EH={'Db':'C#','Eb':'D#','Gb':'F#','Ab':'G#','Bb':'A#','Cb':'B','Fb':'E','B#':'C','E#':'F'};
 const OPEN_MIDI=[64,59,55,50,45,40];
 const SNAMES=['E4','B3','G3','D3','A2','E2'];
+
+// ── Deployment version — update this string each time you push ───────────
+const APP_VERSION='1.0.2.0.0';
 
 // Layout — headstock from x=0..110, nut at 120, frets from 120 onward
 const HEAD_W=110;   // headstock width
@@ -552,6 +561,8 @@ let micStream=null,recFrame=null,isRec=false,recCtx=null,recAn=null;
 let playTimer=null,waitCtx=null,waitAn=null,waitStream=null,waitFrame=null;
 let lastRecMidi=-1,lastRecTime=0;
 let stableNote=-1,stableStart=0;
+let detectionLog=[];
+let testSession=1;
 
 function setTab(t){
   document.getElementById('recordPanel').style.display=t==='record'?'':'none';
@@ -697,70 +708,71 @@ function autoCorrelate(buf,sr){
   return freq;
 }
 
-// ── Harmonic Product Spectrum ────────────────────────────────────────────
-function hpsDetect(buf, sr){
-  let rms=0;for(let i=0;i<buf.length;i++)rms+=buf[i]*buf[i];rms=Math.sqrt(rms/buf.length);
-  if(rms<0.02)return -1;
+// ── Harmonic Product Spectrum (fast — uses browser FFT via AnalyserNode) ─
+function hpsDetect(analyser, sr){
+  const N=analyser.fftSize;
+  const binCount=analyser.frequencyBinCount;
+  const freqData=new Float32Array(binCount);
+  analyser.getFloatFrequencyData(freqData); // dB values from browser FFT — free!
 
-  // FFT via real DFT — only need up to ~1400Hz so limit bins
-  const N=buf.length;
-  const maxBin=Math.ceil(1400*N/sr);
-  const minBin=Math.floor(75*N/sr);
-  const mag=new Float32Array(maxBin+1);
-  for(let k=minBin;k<=maxBin;k++){
-    let re=0,im=0;
-    for(let n=0;n<N;n++){
-      const angle=2*Math.PI*k*n/N;
-      re+=buf[n]*Math.cos(angle);
-      im-=buf[n]*Math.sin(angle);
-    }
-    mag[k]=Math.sqrt(re*re+im*im);
-  }
+  // Convert dB to linear magnitude
+  const mag=new Float32Array(binCount);
+  for(let i=0;i<binCount;i++) mag[i]=Math.pow(10,freqData[i]/20);
 
-  // Harmonic Product Spectrum — multiply mag at 1x, 2x, 3x, 4x, 5x
-  const hps=new Float32Array(maxBin+1);
-  for(let k=minBin;k<=Math.floor(maxBin/5);k++){
-    hps[k]=mag[k];
+  const binHz=sr/N;
+  const minBin=Math.max(1,Math.floor(75/binHz));
+  const maxBin=Math.min(binCount-1,Math.ceil(1400/binHz));
+
+  // HPS — multiply magnitude at harmonics 1x–5x
+  // Only search up to maxBin/5 so all harmonics stay in range
+  const hpsMax=Math.floor(maxBin/5);
+  let bestVal=0,bestBin=minBin;
+  for(let k=minBin;k<=hpsMax;k++){
+    let val=mag[k];
     for(let h=2;h<=5;h++){
       const hk=Math.round(k*h);
-      if(hk<=maxBin)hps[k]*=mag[hk];
+      if(hk<binCount) val*=mag[hk];
     }
+    if(val>bestVal){bestVal=val;bestBin=k;}
   }
 
-  // Find peak in HPS
-  let maxVal=0,maxK=minBin;
-  for(let k=minBin;k<=Math.floor(maxBin/5);k++){
-    if(hps[k]>maxVal){maxVal=hps[k];maxK=k;}
-  }
-
-  const freq=maxK*sr/N;
+  const freq=bestBin*binHz;
   if(freq<75||freq>1400)return -1;
+
+  // Parabolic interpolation for sub-bin accuracy
+  if(bestBin>0&&bestBin<hpsMax){
+    const hps=new Float32Array(hpsMax+1);
+    for(let k=minBin;k<=hpsMax;k++){
+      let v=mag[k];
+      for(let h=2;h<=5;h++){const hk=Math.round(k*h);if(hk<binCount)v*=mag[hk];}
+      hps[k]=v;
+    }
+    const y1=hps[bestBin-1],y2=hps[bestBin],y3=hps[bestBin+1];
+    const denom=y1-2*y2+y3;
+    const refined=denom!==0?bestBin-0.5*(y3-y1)/denom:bestBin;
+    return Math.max(75,Math.min(1400,refined*binHz));
+  }
   return freq;
 }
 
 // ── Consensus pitch detection ────────────────────────────────────────────
-// Returns midi note if autocorrelation and HPS agree within 1 semitone, else -1
-function detectPitch(buf, sr){
+// Returns {freq, f1, f2, agreed, midi} or null if no signal
+function detectPitch(buf, sr, analyser){
   const f1=autoCorrelate(buf,sr);
-  const f2=hpsDetect(buf,sr);
+  const f2=hpsDetect(analyser,sr);
 
-  // If both return valid frequencies
+  let freq=-1, agreed=false;
   if(f1>0&&f2>0){
     const m1=Math.round(12*Math.log2(f1/440)+69);
     const m2=Math.round(12*Math.log2(f2/440)+69);
-    // Agree within 1 semitone — take average frequency
-    if(Math.abs(m1-m2)<=1){
-      const avgFreq=(f1+f2)/2;
-      return avgFreq;
-    }
-    // Disagree — trust HPS for low notes, autocorrelation for high notes
-    const m=Math.round(12*Math.log2(f1/440)+69);
-    return m<45?f2:f1;
-  }
-  // Only one fired — accept it
-  if(f1>0)return f1;
-  if(f2>0)return f2;
-  return -1;
+    if(Math.abs(m1-m2)<=1){freq=(f1+f2)/2;agreed=true;}
+    else{freq=m1<45?f2:f1;agreed=false;}
+  } else if(f1>0){freq=f1;}
+    else if(f2>0){freq=f2;}
+
+  if(freq<75||freq>1400)return null;
+  const midi=Math.round(12*Math.log2(freq/440)+69);
+  return{freq,f1:f1>0?f1:-1,f2:f2>0?f2:-1,agreed,midi};
 }
 
 function startWaitMic(){
@@ -788,14 +800,14 @@ function stopWaitMic(){
 }
 function waitLoop(){
   if(!waitStream||!playing||mode!=='wait')return;
-  const buf=new Float32Array(8192); // larger buffer matches new fftSize
+  const buf=new Float32Array(8192);
   waitAn.getFloatTimeDomainData(buf);
-  const freq=detectPitch(buf,waitCtx.sampleRate);
-  if(freq>75&&freq<1400&&idx<melody.length){
-    const dm=Math.round(12*Math.log2(freq/440)+69);
-    const dn=NOTES[dm%12],dOct=Math.floor(dm/12)-1;
+  const result=detectPitch(buf,waitCtx.sampleRate,waitAn);
+  if(result&&idx<melody.length){
+    const{midi}=result;
+    const dn=NOTES[midi%12],dOct=Math.floor(midi/12)-1;
     document.getElementById('detNote').textContent='hearing: '+dn+dOct;
-    if(dm===melody[idx].midi){
+    if(midi===melody[idx].midi){
       document.getElementById('matchBadge').innerHTML='<span class="badge badge-green">Match!</span>';
       stopWaitMic();
       setTimeout(()=>{document.getElementById('matchBadge').innerHTML='';advanceNote();},300);
@@ -848,6 +860,8 @@ function stopRecord(){
   document.getElementById('recBtn').className='btn btn-gold';
   document.getElementById('recDot').classList.remove('on');
   document.getElementById('recStatus').textContent='Not recording';
+  const freqEl=document.getElementById('liveFreq');
+  freqEl.textContent='—';freqEl.style.opacity='0';
   if(melody.length){
     document.getElementById('playBtn').disabled=false;
     document.getElementById('restartBtn').disabled=false;
@@ -858,35 +872,65 @@ function stopRecord(){
 function recLoop(){
   if(!isRec)return;
   const buf=new Float32Array(8192);recAn.getFloatTimeDomainData(buf);
-  const freq=detectPitch(buf,recCtx.sampleRate);
-  if(freq>75&&freq<1400){
-    const midi=Math.round(12*Math.log2(freq/440)+69),now=Date.now();
+  const result=detectPitch(buf,recCtx.sampleRate,recAn);
+  const freqEl=document.getElementById('liveFreq');
+  if(result){
+    const{freq,f1,f2,agreed,midi}=result,now=Date.now();
+    // Always show live frequency as it's detected
+    freqEl.textContent=freq.toFixed(1)+' Hz';
+    freqEl.style.opacity='1';
+    freqEl.style.color=agreed?'var(--teal)':'var(--gold)';
     if(midi===stableNote){
-      // Same pitch held — check if stable for 80ms and past debounce
       const stabilityMs=midi<45?60:midi>64?35:50;
       if((now-stableStart)>stabilityMs && midi!==lastRecMidi && (now-lastRecTime)>400){
         lastRecMidi=midi;lastRecTime=now;stableNote=-1;
         const name=NOTES[midi%12],oct=Math.floor(midi/12)-1;
         melody.push({name,oct,midi});
+        // ── Log entry ──
+        const ts=new Date().toISOString();
+        const ac=f1>0?f1.toFixed(2)+'Hz':'—';
+        const hps=f2>0?f2.toFixed(2)+'Hz':'—';
+        const status=agreed?'AGREE':(f1>0&&f2>0?'DISAGREE':'SINGLE');
+        detectionLog.push(`${ts} | ${APP_VERSION} | session ${testSession} | ${name}${oct} (midi ${midi}) | AC=${ac} | HPS=${hps} | ${status}`);
         renderRecTags();
         document.getElementById('undoBtn').disabled=false;
         document.getElementById('progressLabel').textContent='0 / '+melody.length;
+        document.getElementById('logCount').textContent=detectionLog.length+' entries';
       }
     } else {
-      // New candidate — start stability timer
       stableNote=midi;stableStart=now;
     }
   } else {
-    stableNote=-1; // silence resets candidate
+    // No signal — fade out frequency display
+    freqEl.style.opacity='0.25';
+    freqEl.textContent='—';
+    stableNote=-1;
   }
   recFrame=requestAnimationFrame(recLoop);
 }
 function renderRecTags(){
   document.getElementById('recTags').innerHTML=melody.map(n=>`<span class="rec-tag">${n.name}${n.oct}</span>`).join('');
 }
+function downloadLog(){
+  if(!detectionLog.length){alert('No log entries yet — record some notes first.');return;}
+  const header='FretSight Detection Log\nVersion: '+APP_VERSION+'\nGenerated: '+new Date().toLocaleString()+'\nFormat: timestamp | version | session | note | autocorrelation freq | HPS freq | agreement\n'+'─'.repeat(80)+'\nSESSION 1 started — page load\n'+'─'.repeat(80)+'\n';
+  const blob=new Blob([header+detectionLog.join('\n')],{type:'text/plain'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='fretsight_detection_log.txt';
+  a.click();URL.revokeObjectURL(a.href);
+}
 function undoNote(){melody.pop();renderRecTags();if(!melody.length)document.getElementById('undoBtn').disabled=true;}
 function clearMelody(){
   melody=[];idx=0;renderRecTags();
+  // Increment session — log keeps accumulating
+  if(detectionLog.length){
+    testSession++;
+    detectionLog.push('─'.repeat(80));
+    detectionLog.push(`SESSION ${testSession} started — ${new Date().toLocaleString()} — ${APP_VERSION}`);
+    detectionLog.push('─'.repeat(80));
+  }
+  document.getElementById('logCount').textContent=detectionLog.length+' entries';
   document.getElementById('undoBtn').disabled=true;
   document.getElementById('playBtn').disabled=true;
   document.getElementById('restartBtn').disabled=true;
@@ -899,6 +943,7 @@ function clearMelody(){
 
 drawFretboard(null);
 initSampler();
+document.getElementById('versionFooter').textContent=APP_VERSION;
 </script>
 </body>
 </html>
