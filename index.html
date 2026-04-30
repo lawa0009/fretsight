@@ -508,9 +508,13 @@ function drawFretboard(noteKey,animate){
       h+=`<circle cx="${fx}" cy="${midY}" r="6" fill="url(#inlayGrad)" stroke="rgba(0,0,0,0.3)" stroke-width="0.5"/>`;
       h+=`<circle cx="${fx}" cy="${midY}" r="2.5" fill="rgba(255,255,255,0.3)"/>`;
     }
-    // Fret number below neck
-    h+=`<text x="${fx}" y="${Y0+NECK_H+18}" text-anchor="middle" font-size="12" fill="rgba(28,22,36,0.5)" font-family="Outfit,sans-serif" font-weight="500">${m}</text>`;
+    // Fret number below neck — bright color for dark background, starting at 1
+    h+=`<text x="${fx}" y="${Y0+NECK_H+18}" text-anchor="middle" font-size="13" fill="rgba(201,168,76,0.7)" font-family="Outfit,sans-serif" font-weight="600">${m}</text>`;
   });
+
+  // Also label fret 1 position explicitly
+  const f1x=(NUT_X+FRET_X[1])/2;
+  h+=`<text x="${f1x}" y="${Y0+NECK_H+18}" text-anchor="middle" font-size="13" fill="rgba(201,168,76,0.7)" font-family="Outfit,sans-serif" font-weight="600">1</text>`;
 
   // ═══════════════════════════════════════════
   // STRINGS
@@ -535,142 +539,6 @@ function drawFretboard(noteKey,animate){
 
   svg.innerHTML=h;
 
-  if(noteKey&&BEST[noteKey]){
-    const{s,f}=BEST[noteKey];
-    placeFingerAt(fretCX(s,f),STR_Y[s]);
-  }
-}
-
-  // ── Defs: wood grain gradients, fret wire, string textures ──
-  h+=`<defs>
-    <linearGradient id="woodGrain" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%"   stop-color="#2c1a0e"/>
-      <stop offset="8%"   stop-color="#3d2512"/>
-      <stop offset="18%"  stop-color="#2a1709"/>
-      <stop offset="28%"  stop-color="#3f2814"/>
-      <stop offset="38%"  stop-color="#2e1c0d"/>
-      <stop offset="50%"  stop-color="#4a2f18"/>
-      <stop offset="62%"  stop-color="#2c1a0e"/>
-      <stop offset="72%"  stop-color="#3a2310"/>
-      <stop offset="82%"  stop-color="#281608"/>
-      <stop offset="92%"  stop-color="#3d2512"/>
-      <stop offset="100%" stop-color="#2c1a0e"/>
-    </linearGradient>
-    <linearGradient id="woodSheen" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%"   stop-color="rgba(255,220,160,0.12)"/>
-      <stop offset="30%"  stop-color="rgba(255,200,120,0.04)"/>
-      <stop offset="60%"  stop-color="rgba(0,0,0,0.08)"/>
-      <stop offset="100%" stop-color="rgba(0,0,0,0.18)"/>
-    </linearGradient>
-    <linearGradient id="nutGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%"   stop-color="#f5f0e0"/>
-      <stop offset="40%"  stop-color="#ddd5b0"/>
-      <stop offset="100%" stop-color="#b8a870"/>
-    </linearGradient>
-    <linearGradient id="fretWire" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%"   stop-color="#e8e4d8"/>
-      <stop offset="35%"  stop-color="#c8c4b4"/>
-      <stop offset="60%"  stop-color="#a8a498"/>
-      <stop offset="100%" stop-color="#888478"/>
-    </linearGradient>
-    <linearGradient id="edgeLG" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%"   stop-color="rgba(255,200,120,0.25)"/>
-      <stop offset="50%"  stop-color="rgba(255,180,80,0.08)"/>
-      <stop offset="100%" stop-color="rgba(0,0,0,0.3)"/>
-    </linearGradient>
-    <filter id="fretShadow" x="-20%" y="-50%" width="140%" height="200%">
-      <feDropShadow dx="0" dy="1" stdDeviation="0.8" flood-color="rgba(0,0,0,0.5)"/>
-    </filter>
-    <filter id="stringShadow">
-      <feDropShadow dx="0" dy="0.5" stdDeviation="0.5" flood-color="rgba(0,0,0,0.6)"/>
-    </filter>
-    <radialGradient id="inlayGrad" cx="50%" cy="35%" r="60%">
-      <stop offset="0%"   stop-color="#f0ebe0"/>
-      <stop offset="60%"  stop-color="#d4cdb8"/>
-      <stop offset="100%" stop-color="#a89f88"/>
-    </radialGradient>
-    <radialGradient id="violetGlow" cx="50%" cy="50%" r="50%">
-      <stop offset="0%"   stop-color="rgba(109,40,217,0.7)"/>
-      <stop offset="100%" stop-color="rgba(109,40,217,0)"/>
-    </radialGradient>
-  </defs>`;
-
-  // ── Body edges (binding) ──
-  h+=`<rect x="${NUT_X-1}" y="${Y0-3}" width="${W+2}" height="${H+6}" rx="4" fill="#1a0e06" stroke="#7a5c30" stroke-width="1.5"/>`;
-
-  // ── Wood body ──
-  h+=`<rect x="${NUT_X}" y="${Y0}" width="${W}" height="${H}" fill="url(#woodGrain)"/>`;
-
-  // ── Wood grain lines (vertical streaks) ──
-  const grainLines=[0.06,0.13,0.19,0.27,0.34,0.41,0.48,0.55,0.61,0.68,0.74,0.81,0.88,0.94];
-  grainLines.forEach((pct,i)=>{
-    const x=NUT_X+W*pct;
-    const op=(0.04+Math.sin(i*1.3)*0.03).toFixed(3);
-    const w=(0.6+Math.random()*0.8).toFixed(1);
-    h+=`<line x1="${x}" y1="${Y0}" x2="${x+Math.sin(i)*3}" y2="${Y0+H}" stroke="rgba(0,0,0,${op})" stroke-width="${w}"/>`;
-  });
-
-  // ── Gloss sheen overlay ──
-  h+=`<rect x="${NUT_X}" y="${Y0}" width="${W}" height="${H}" fill="url(#woodSheen)"/>`;
-
-  // ── Edge lighting ──
-  h+=`<rect x="${NUT_X}" y="${Y0}" width="${W}" height="${H}" fill="url(#edgeLG)" opacity="0.6"/>`;
-
-  // ── Fret wires ──
-  for(let f=0;f<13;f++){
-    const x=FRET_X[f];
-    h+=`<rect x="${x-1.2}" y="${Y0-1}" width="2.4" height="${H+2}" fill="url(#fretWire)" filter="url(#fretShadow)" rx="1"/>`;
-    // fret wire highlight
-    h+=`<line x1="${x-0.4}" y1="${Y0}" x2="${x-0.4}" y2="${Y0+H}" stroke="rgba(255,255,255,0.35)" stroke-width="0.5"/>`;
-  }
-
-  // ── Nut (bone coloured) ──
-  h+=`<rect x="${NUT_X-5}" y="${Y0-2}" width="6" height="${H+4}" rx="1" fill="url(#nutGrad)" stroke="#c8b878" stroke-width="0.5"/>`;
-  h+=`<line x1="${NUT_X-4.5}" y1="${Y0}" x2="${NUT_X-4.5}" y2="${Y0+H}" stroke="rgba(255,255,255,0.5)" stroke-width="0.8"/>`;
-
-  // ── Position inlays (dots at 3,5,7,9 and double at 12) ──
-  const inlayFrets=[3,5,7,9,12];
-  inlayFrets.forEach(m=>{
-    const fx=((m===1?NUT_X:FRET_X[m-2])+FRET_X[m-1])/2;
-    const midY=Y0+H/2;
-    if(m===12){
-      // double dot
-      h+=`<circle cx="${fx}" cy="${midY-18}" r="5.5" fill="url(#inlayGrad)" stroke="rgba(0,0,0,0.3)" stroke-width="0.5"/>`;
-      h+=`<circle cx="${fx}" cy="${midY-18}" r="2.5" fill="rgba(255,255,255,0.3)"/>`;
-      h+=`<circle cx="${fx}" cy="${midY+18}" r="5.5" fill="url(#inlayGrad)" stroke="rgba(0,0,0,0.3)" stroke-width="0.5"/>`;
-      h+=`<circle cx="${fx}" cy="${midY+18}" r="2.5" fill="rgba(255,255,255,0.3)"/>`;
-    } else {
-      h+=`<circle cx="${fx}" cy="${midY}" r="5.5" fill="url(#inlayGrad)" stroke="rgba(0,0,0,0.3)" stroke-width="0.5"/>`;
-      h+=`<circle cx="${fx}" cy="${midY}" r="2.5" fill="rgba(255,255,255,0.3)"/>`;
-    }
-    // fret number below
-    h+=`<text x="${fx}" y="${Y0+H+14}" text-anchor="middle" font-size="9" fill="rgba(28,22,36,0.45)" font-family="Outfit,sans-serif">${m}</text>`;
-  });
-
-  // ── Strings (realistic wound/plain with sheen) ──
-  const stringColors=[
-    {base:'#d4d0c4',hi:'#f0ece0',sh:'rgba(0,0,0,0.5)',w:1.0},   // e (plain)
-    {base:'#ccc8ba',hi:'#eae6d8',sh:'rgba(0,0,0,0.5)',w:1.3},   // B (plain)
-    {base:'#c4c0b0',hi:'#e0dcc8',sh:'rgba(0,0,0,0.5)',w:1.7},   // G (plain)
-    {base:'#b8a870',hi:'#d4c080',sh:'rgba(0,0,0,0.6)',w:2.2},   // D (wound)
-    {base:'#a89860',hi:'#c4b070',sh:'rgba(0,0,0,0.6)',w:2.8},   // A (wound)
-    {base:'#988850',hi:'#b4a060',sh:'rgba(0,0,0,0.7)',w:3.5},   // E (wound)
-  ];
-  for(let s=0;s<6;s++){
-    const sc=stringColors[s], y=STR_Y[s];
-    // string shadow
-    h+=`<line x1="${NUT_X}" y1="${y+1}" x2="${FRET_X[12]}" y2="${y+1}" stroke="rgba(0,0,0,0.4)" stroke-width="${sc.w+0.5}"/>`;
-    // string body
-    h+=`<line x1="${NUT_X}" y1="${y}" x2="${FRET_X[12]}" y2="${y}" stroke="${sc.base}" stroke-width="${sc.w}"/>`;
-    // string highlight (top sheen)
-    h+=`<line x1="${NUT_X}" y1="${y-sc.w*0.25}" x2="${FRET_X[12]}" y2="${y-sc.w*0.25}" stroke="${sc.hi}" stroke-width="${sc.w*0.3}" opacity="0.7"/>`;
-    // string label
-    h+=`<text x="50" y="${y+4}" text-anchor="middle" font-size="9" fill="rgba(28,22,36,0.5)" font-family="Outfit,sans-serif" font-weight="500">${SNAMES[s]}</text>`;
-  }
-
-  svg.innerHTML=h;
-
-  // Place finger after redraw
   if(noteKey&&BEST[noteKey]){
     const{s,f}=BEST[noteKey];
     placeFingerAt(fretCX(s,f),STR_Y[s]);
@@ -830,20 +698,19 @@ function autoCorrelate(buf,sr){
 
 function startWaitMic(){
   if(waitStream)return;
-  navigator.mediaDevices.getUserMedia({
-    audio:{
-      echoCancellation:false,  // off — hurts pitch detection
-      noiseSuppression:false,  // off — removes harmonics
-      autoGainControl:false,   // off — causes level jumps
-      sampleRate:44100
-    }
-  }).then(stream=>{
-    waitCtx=new AudioContext({latencyHint:'interactive'});
+  navigator.mediaDevices.getUserMedia({audio:true})
+  .then(stream=>{
+    waitCtx=new AudioContext();
+    try{
+      const track=stream.getAudioTracks()[0];
+      track.applyConstraints({echoCancellation:false,noiseSuppression:false,autoGainControl:false}).catch(()=>{});
+    } catch(e){}
     waitAn=waitCtx.createAnalyser();
-    waitAn.fftSize=4096;       // larger buffer = better low-freq detection
-    waitAn.smoothingTimeConstant=0.5; // some smoothing reduces false triggers
+    waitAn.fftSize=4096;
+    waitAn.smoothingTimeConstant=0.5;
     waitCtx.createMediaStreamSource(stream).connect(waitAn);
-    waitStream=stream;waitLoop();
+    waitStream=stream;
+    waitLoop();
   }).catch(()=>{});
 }
 function stopWaitMic(){
@@ -873,10 +740,20 @@ function waitLoop(){
 
 function toggleRecord(){if(isRec)stopRecord();else startRecord();}
 function startRecord(){
-  navigator.mediaDevices.getUserMedia({
-    audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false,sampleRate:44100}
-  }).then(stream=>{
-    recCtx=new AudioContext({latencyHint:'interactive'});
+  // Safari is strict about constraints — use simple true first, then try enhanced
+  const constraints={audio:true};
+  navigator.mediaDevices.getUserMedia(constraints)
+  .then(stream=>{
+    recCtx=new AudioContext();
+    // Try to disable processing after context created
+    try{
+      const track=stream.getAudioTracks()[0];
+      track.applyConstraints({
+        echoCancellation:false,
+        noiseSuppression:false,
+        autoGainControl:false
+      }).catch(()=>{}); // ignore if Safari won't apply
+    } catch(e){}
     recAn=recCtx.createAnalyser();
     recAn.fftSize=4096;
     recAn.smoothingTimeConstant=0.4;
@@ -887,7 +764,14 @@ function startRecord(){
     document.getElementById('recDot').classList.add('on');
     document.getElementById('recStatus').textContent='Recording — play each note clearly, hold ~0.5s';
     recLoop();
-  }).catch(()=>{document.getElementById('recStatus').textContent='Microphone access denied';});
+  })
+  .catch(err=>{
+    console.error('Mic error:',err);
+    const msg=err.name==='NotAllowedError'?'Mic blocked — allow in Safari → Settings → Websites → Microphone':
+              err.name==='NotFoundError'?'No microphone found':
+              'Mic error: '+err.message;
+    document.getElementById('recStatus').textContent=msg;
+  });
 }
 function stopRecord(){
   isRec=false;if(recFrame)cancelAnimationFrame(recFrame);
