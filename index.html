@@ -551,6 +551,7 @@ let melody=[],idx=0,playing=false,mode='auto',speed=100;
 let micStream=null,recFrame=null,isRec=false,recCtx=null,recAn=null;
 let playTimer=null,waitCtx=null,waitAn=null,waitStream=null,waitFrame=null;
 let lastRecMidi=-1,lastRecTime=0;
+let stableNote=-1,stableStart=0;
 
 function setTab(t){
   document.getElementById('recordPanel').style.display=t==='record'?'':'none';
@@ -667,7 +668,7 @@ function finishPractice(){
 function autoCorrelate(buf,sr){
   // RMS check — lowered threshold to catch softer playing
   let rms=0;for(let i=0;i<buf.length;i++)rms+=buf[i]*buf[i];rms=Math.sqrt(rms/buf.length);
-  if(rms<0.008)return -1; // was 0.015 — now catches quieter notes
+  if(rms<0.02)return -1;
 
   // Clip detection — trim silence from edges
   let r1=0,r2=buf.length-1;
@@ -774,7 +775,7 @@ function startRecord(){
   });
 }
 function stopRecord(){
-  isRec=false;if(recFrame)cancelAnimationFrame(recFrame);
+  isRec=false;stableNote=-1;stableStart=0;if(recFrame)cancelAnimationFrame(recFrame);
   if(micStream)micStream.getTracks().forEach(t=>t.stop());
   if(recCtx)recCtx.close();
   document.getElementById('recBtn').textContent='Start mic';
@@ -794,14 +795,22 @@ function recLoop(){
   const freq=autoCorrelate(buf,recCtx.sampleRate);
   if(freq>75&&freq<1400){
     const midi=Math.round(12*Math.log2(freq/440)+69),now=Date.now();
-    if(midi!==lastRecMidi&&(now-lastRecTime)>250){ // reduced from 350ms → 250ms
-      lastRecMidi=midi;lastRecTime=now;
-      const name=NOTES[midi%12],oct=Math.floor(midi/12)-1;
-      melody.push({name,oct,midi});
-      renderRecTags();
-      document.getElementById('undoBtn').disabled=false;
-      document.getElementById('progressLabel').textContent='0 / '+melody.length;
+    if(midi===stableNote){
+      // Same pitch held — check if stable for 80ms and past debounce
+      if((now-stableStart)>80 && midi!==lastRecMidi && (now-lastRecTime)>400){
+        lastRecMidi=midi;lastRecTime=now;stableNote=-1;
+        const name=NOTES[midi%12],oct=Math.floor(midi/12)-1;
+        melody.push({name,oct,midi});
+        renderRecTags();
+        document.getElementById('undoBtn').disabled=false;
+        document.getElementById('progressLabel').textContent='0 / '+melody.length;
+      }
+    } else {
+      // New candidate — start stability timer
+      stableNote=midi;stableStart=now;
     }
+  } else {
+    stableNote=-1; // silence resets candidate
   }
   recFrame=requestAnimationFrame(recLoop);
 }
