@@ -677,9 +677,9 @@ function finishPractice(){
 }
 
 function autoCorrelate(buf,sr){
-  // RMS check — lowered threshold to catch softer playing
+  // RMS threshold — 0.04 filters background noise and room ambience
   let rms=0;for(let i=0;i<buf.length;i++)rms+=buf[i]*buf[i];rms=Math.sqrt(rms/buf.length);
-  if(rms<0.02)return -1;
+  if(rms<0.04)return -1;
 
   // Clip detection — trim silence from edges
   let r1=0,r2=buf.length-1;
@@ -714,6 +714,11 @@ function hpsDetect(analyser, sr){
   const binCount=analyser.frequencyBinCount;
   const freqData=new Float32Array(binCount);
   analyser.getFloatFrequencyData(freqData); // dB values from browser FFT — free!
+
+  // Noise floor gate — if peak signal is below -50dB it's just room noise
+  let peakDb=-Infinity;
+  for(let i=0;i<binCount;i++) if(freqData[i]>peakDb) peakDb=freqData[i];
+  if(peakDb<-50) return -1;
 
   // Convert dB to linear magnitude
   const mag=new Float32Array(binCount);
@@ -876,10 +881,13 @@ function recLoop(){
   const freqEl=document.getElementById('liveFreq');
   if(result){
     const{freq,f1,f2,agreed,midi}=result,now=Date.now();
-    // Always show live frequency as it's detected
-    freqEl.textContent=freq.toFixed(1)+' Hz';
-    freqEl.style.opacity='1';
-    freqEl.style.color=agreed?'var(--teal)':'var(--gold)';
+    // Only show frequency if both algorithms fired or they agree — filters noise
+    const confident=(f1>0&&f2>0)||agreed;
+    if(confident){
+      freqEl.textContent=freq.toFixed(1)+' Hz';
+      freqEl.style.opacity='1';
+      freqEl.style.color=agreed?'var(--teal)':'var(--gold)';
+    }
     if(midi===stableNote){
       const stabilityMs=midi<45?60:midi>64?35:50;
       if((now-stableStart)>stabilityMs && midi!==lastRecMidi && (now-lastRecTime)>400){
