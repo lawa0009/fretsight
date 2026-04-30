@@ -707,7 +707,7 @@ function startWaitMic(){
       track.applyConstraints({echoCancellation:false,noiseSuppression:false,autoGainControl:false}).catch(()=>{});
     } catch(e){}
     waitAn=waitCtx.createAnalyser();
-    waitAn.fftSize=4096;
+    waitAn.fftSize=8192;
     waitAn.smoothingTimeConstant=0.5;
     waitCtx.createMediaStreamSource(stream).connect(waitAn);
     waitStream=stream;
@@ -722,7 +722,7 @@ function stopWaitMic(){
 }
 function waitLoop(){
   if(!waitStream||!playing||mode!=='wait')return;
-  const buf=new Float32Array(4096); // larger buffer matches new fftSize
+  const buf=new Float32Array(8192); // larger buffer matches new fftSize
   waitAn.getFloatTimeDomainData(buf);
   const freq=autoCorrelate(buf,waitCtx.sampleRate);
   if(freq>75&&freq<1400&&idx<melody.length){
@@ -756,7 +756,7 @@ function startRecord(){
       }).catch(()=>{}); // ignore if Safari won't apply
     } catch(e){}
     recAn=recCtx.createAnalyser();
-    recAn.fftSize=4096;
+    recAn.fftSize=8192;
     recAn.smoothingTimeConstant=0.4;
     recCtx.createMediaStreamSource(stream).connect(recAn);
     micStream=stream;isRec=true;
@@ -791,13 +791,14 @@ function stopRecord(){
 }
 function recLoop(){
   if(!isRec)return;
-  const buf=new Float32Array(4096);recAn.getFloatTimeDomainData(buf);
+  const buf=new Float32Array(8192);recAn.getFloatTimeDomainData(buf);
   const freq=autoCorrelate(buf,recCtx.sampleRate);
   if(freq>75&&freq<1400){
     const midi=Math.round(12*Math.log2(freq/440)+69),now=Date.now();
     if(midi===stableNote){
       // Same pitch held — check if stable for 80ms and past debounce
-      if((now-stableStart)>50 && midi!==lastRecMidi && (now-lastRecTime)>400){
+      const stabilityMs=midi<45?60:midi>64?35:50;
+      if((now-stableStart)>stabilityMs && midi!==lastRecMidi && (now-lastRecTime)>400){
         lastRecMidi=midi;lastRecTime=now;stableNote=-1;
         const name=NOTES[midi%12],oct=Math.floor(midi/12)-1;
         melody.push({name,oct,midi});
