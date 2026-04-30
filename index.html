@@ -797,7 +797,7 @@ function recLoop(){
     const midi=Math.round(12*Math.log2(freq/440)+69),now=Date.now();
     if(midi===stableNote){
       // Same pitch held — check if stable for 80ms and past debounce
-      if((now-stableStart)>80 && midi!==lastRecMidi && (now-lastRecTime)>400){
+      if((now-stableStart)>50 && midi!==lastRecMidi && (now-lastRecTime)>400){
         lastRecMidi=midi;lastRecTime=now;stableNote=-1;
         const name=NOTES[midi%12],oct=Math.floor(midi/12)-1;
         melody.push({name,oct,midi});
