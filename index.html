@@ -697,6 +697,72 @@ function autoCorrelate(buf,sr){
   return freq;
 }
 
+// ── Harmonic Product Spectrum ────────────────────────────────────────────
+function hpsDetect(buf, sr){
+  let rms=0;for(let i=0;i<buf.length;i++)rms+=buf[i]*buf[i];rms=Math.sqrt(rms/buf.length);
+  if(rms<0.02)return -1;
+
+  // FFT via real DFT — only need up to ~1400Hz so limit bins
+  const N=buf.length;
+  const maxBin=Math.ceil(1400*N/sr);
+  const minBin=Math.floor(75*N/sr);
+  const mag=new Float32Array(maxBin+1);
+  for(let k=minBin;k<=maxBin;k++){
+    let re=0,im=0;
+    for(let n=0;n<N;n++){
+      const angle=2*Math.PI*k*n/N;
+      re+=buf[n]*Math.cos(angle);
+      im-=buf[n]*Math.sin(angle);
+    }
+    mag[k]=Math.sqrt(re*re+im*im);
+  }
+
+  // Harmonic Product Spectrum — multiply mag at 1x, 2x, 3x, 4x, 5x
+  const hps=new Float32Array(maxBin+1);
+  for(let k=minBin;k<=Math.floor(maxBin/5);k++){
+    hps[k]=mag[k];
+    for(let h=2;h<=5;h++){
+      const hk=Math.round(k*h);
+      if(hk<=maxBin)hps[k]*=mag[hk];
+    }
+  }
+
+  // Find peak in HPS
+  let maxVal=0,maxK=minBin;
+  for(let k=minBin;k<=Math.floor(maxBin/5);k++){
+    if(hps[k]>maxVal){maxVal=hps[k];maxK=k;}
+  }
+
+  const freq=maxK*sr/N;
+  if(freq<75||freq>1400)return -1;
+  return freq;
+}
+
+// ── Consensus pitch detection ────────────────────────────────────────────
+// Returns midi note if autocorrelation and HPS agree within 1 semitone, else -1
+function detectPitch(buf, sr){
+  const f1=autoCorrelate(buf,sr);
+  const f2=hpsDetect(buf,sr);
+
+  // If both return valid frequencies
+  if(f1>0&&f2>0){
+    const m1=Math.round(12*Math.log2(f1/440)+69);
+    const m2=Math.round(12*Math.log2(f2/440)+69);
+    // Agree within 1 semitone — take average frequency
+    if(Math.abs(m1-m2)<=1){
+      const avgFreq=(f1+f2)/2;
+      return avgFreq;
+    }
+    // Disagree — trust HPS for low notes, autocorrelation for high notes
+    const m=Math.round(12*Math.log2(f1/440)+69);
+    return m<45?f2:f1;
+  }
+  // Only one fired — accept it
+  if(f1>0)return f1;
+  if(f2>0)return f2;
+  return -1;
+}
+
 function startWaitMic(){
   if(waitStream)return;
   navigator.mediaDevices.getUserMedia({audio:true})
@@ -724,7 +790,7 @@ function waitLoop(){
   if(!waitStream||!playing||mode!=='wait')return;
   const buf=new Float32Array(8192); // larger buffer matches new fftSize
   waitAn.getFloatTimeDomainData(buf);
-  const freq=autoCorrelate(buf,waitCtx.sampleRate);
+  const freq=detectPitch(buf,waitCtx.sampleRate);
   if(freq>75&&freq<1400&&idx<melody.length){
     const dm=Math.round(12*Math.log2(freq/440)+69);
     const dn=NOTES[dm%12],dOct=Math.floor(dm/12)-1;
@@ -792,7 +858,7 @@ function stopRecord(){
 function recLoop(){
   if(!isRec)return;
   const buf=new Float32Array(8192);recAn.getFloatTimeDomainData(buf);
-  const freq=autoCorrelate(buf,recCtx.sampleRate);
+  const freq=detectPitch(buf,recCtx.sampleRate);
   if(freq>75&&freq<1400){
     const midi=Math.round(12*Math.log2(freq/440)+69),now=Date.now();
     if(midi===stableNote){
