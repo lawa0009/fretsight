@@ -139,9 +139,7 @@
           <div class="rec-bar"></div>
           <div class="rec-bar"></div>
         </div>
-        <button class="btn" id="nextNoteBtn" onclick="nextRecordedNote()" disabled>Next</button>
-        <button class="btn" id="restartRecBtn" onclick="restartRecording()" disabled>Restart</button>
-        <button class="btn" onclick="undoNote()" id="undoBtn" disabled>Undo</button>
+        <button class="btn" onclick="undoNote()" id="undoBtn" disabled>Undo last</button>
         <button class="btn" onclick="clearMelody()">Clear</button>
         <div class="rec-dot" id="recDot"></div>
         <span id="recStatus" class="hint">Not recording</span>
@@ -429,7 +427,7 @@ function toggleCalString(i){
   calActive=true;
   renderCalStrings();
   const startTime=Date.now();
-  const duration=2000;
+  const duration=4000;
   function loop(){
     if(!calActive||calStringIdx!==i)return;
     const elapsed=Date.now()-startTime;
@@ -452,7 +450,7 @@ function collectCalString(i){toggleCalString(i);}// legacy stub
 function collectCalString(i){
   if(!calActive||calStringIdx!==i)return;
   const startTime=Date.now();
-  const duration=2000;
+  const duration=4000;
   function loop(){
     if(!calActive||calStringIdx!==i)return;
     const elapsed=Date.now()-startTime;
@@ -1281,7 +1279,7 @@ function clearMelody(){
 }
 
 // ── Build number — incremented by Claude each time a new index.html is generated ─
-const BUILD=6;
+const BUILD=8;
 
 drawFretboard(null);
 initSampler();
