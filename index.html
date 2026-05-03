@@ -857,13 +857,8 @@ function startRecord(){
     document.getElementById('recBtn').textContent='Stop mic';
     document.getElementById('recBtn').className='btn btn-danger';
     document.getElementById('recDot').classList.add('on');
-    document.getElementById('recStatus').textContent='Warming up...';
-    // Give AudioContext and FFT 400ms to initialise before processing
-    setTimeout(()=>{
-      if(!isRec)return;
-      document.getElementById('recStatus').textContent='Recording — play each note clearly, hold ~0.5s';
-      recLoop();
-    },400);
+    document.getElementById('recStatus').textContent='Recording — play each note clearly, hold ~0.5s';
+    recLoop();
   })
   .catch(err=>{
     console.error('Mic error:',err);
