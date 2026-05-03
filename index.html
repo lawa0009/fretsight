@@ -221,47 +221,15 @@
   <!-- Calibration modal -->
   <div id="calOverlay" class="cal-overlay" style="display:none" onclick="if(event.target===this)closeCalibration()">
     <div class="cal-modal">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
         <div>
           <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:var(--gold)">Guitar calibration</div>
-          <div style="font-size:12px;color:var(--hint);margin-top:2px">Play each open string when highlighted — hold for 2 seconds</div>
+          <div style="font-size:12px;color:var(--hint);margin-top:2px">Click Record on each string — play the open string and hold for 2 seconds</div>
         </div>
         <button class="btn" onclick="closeCalibration()" style="font-size:18px;padding:4px 10px">✕</button>
       </div>
-
-      <div id="calStrings">
-        <!-- Populated by JS -->
-      </div>
-
-      <div id="calPrompt" style="text-align:center;padding:1rem 0;font-size:14px;color:var(--hint)">
-        Select a string to calibrate, or press Start to go through all strings
-      </div>
-
-      <div class="row" style="margin-top:1rem;gap:10px">
-        <button class="btn btn-gold" id="calBtn" onclick="startCalibration()">Start all</button>
-        <button class="btn" id="calSkipBtn" onclick="skipString()" disabled>Skip string</button>
-        <button class="btn" id="calRestartBtn" onclick="restartCurrentString()" disabled>Re-record</button>
-        <button class="btn" onclick="closeCalibration()" style="margin-left:auto">Close</button>
-      </div>
-
-      <div id="calResults" style="display:none;margin-top:1.5rem">
-        <div style="font-size:11px;color:var(--hint);text-transform:uppercase;letter-spacing:0.1em;font-weight:600;margin-bottom:0.5rem">Calibration profile</div>
-        <table class="cal-table">
-          <thead>
-            <tr>
-              <th>String</th>
-              <th>Note</th>
-              <th>RMS level</th>
-              <th>H2/Fund</th>
-              <th>H3/Fund</th>
-              <th>Decay</th>
-              <th>Inharmonicity</th>
-            </tr>
-          </thead>
-          <tbody id="calTableBody"></tbody>
-        </table>
-        <div style="font-size:11px;color:var(--hint);margin-top:0.75rem">H2/Fund = 2nd harmonic strength relative to fundamental · higher = richer overtones</div>
-      </div>
+      <div id="calStrings"></div>
+      <div style="font-size:11px;color:var(--hint);margin-top:1rem">H2/Fund = 2nd harmonic vs fundamental · higher = richer overtones (nylon strings typically lower than steel)</div>
     </div>
   </div>
 
@@ -411,26 +379,36 @@ function closeCalibration(){
   calStringIdx=-1;calActive=false;
 }
 function renderCalStrings(){
-  document.getElementById('calStrings').innerHTML=CAL_STRINGS.map((s,i)=>`
-    <div class="cal-string-row ${calStringIdx===i?'cal-active':''}" id="calRow${i}">
+  document.getElementById('calStrings').innerHTML=CAL_STRINGS.map((s,i)=>{
+    const p=calProfile[i];
+    const done=p.avgRms!==undefined;
+    return`<div class="cal-string-row" id="calRow${i}">
       <div class="cal-note">${s.note}</div>
       <div style="font-size:13px;color:var(--muted);min-width:52px">${s.name}</div>
-      <div class="cal-bar"><div class="cal-fill" id="calFill${i}"></div></div>
-      <div class="cal-status" id="calStat${i}">${calDone&&calProfile[i].rmsThreshold!==defaultProfile.rmsThreshold?'<span style="color:var(--green)">✓ done</span>':'waiting'}</div>
-    </div>`).join('');
+      <div class="cal-bar"><div class="cal-fill" id="calFill${i}" style="width:${done?'100%':'0%'}"></div></div>
+      <div id="calResult${i}" style="font-size:11px;font-family:'Outfit',sans-serif;min-width:180px;padding-left:8px">
+        ${done?`<span style="color:var(--green)">✓</span> RMS ${p.avgRms.toFixed(3)} · H2 ${p.h2Ratio.toFixed(2)} · ${p.decayMs}ms`:'<span style="color:var(--hint)">not calibrated</span>'}
+      </div>
+      <button class="btn ${calActive&&calStringIdx===i?'btn-danger':''}" id="calRecBtn${i}"
+        onclick="toggleCalString(${i})" style="font-size:12px;padding:5px 12px;min-width:70px">
+        ${calActive&&calStringIdx===i?'Stop':'Record'}
+      </button>
+    </div>`;
+  }).join('');
 }
-function startCalibration(){
-  if(calActive)return;
-  calStringIdx=0;
-  document.getElementById('calBtn').disabled=true;
-  document.getElementById('calSkipBtn').disabled=false;
-  document.getElementById('calRestartBtn').disabled=true;
-  document.getElementById('calResults').style.display='none';
-  calProfile=CAL_STRINGS.map(()=>({...defaultProfile}));
-  calDone=false;
-  startCalMic();
+function toggleCalString(i){
+  if(calActive&&calStringIdx===i){
+    // Stop current recording
+    stopCalMic();
+    calStringIdx=-1;
+    renderCalStrings();
+    return;
+  }
+  if(calActive) stopCalMic(); // stop any other running string
+  calStringIdx=i;
+  startCalStringMic(i);
 }
-function startCalMic(){
+function startCalStringMic(i){
   navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
     calCtx=new AudioContext();
     try{stream.getAudioTracks()[0].applyConstraints({echoCancellation:false,noiseSuppression:false,autoGainControl:false}).catch(()=>{});}catch(e){}
@@ -439,10 +417,83 @@ function startCalMic(){
     calAn.smoothingTimeConstant=0.3;
     calCtx.createMediaStreamSource(stream).connect(calAn);
     calStream=stream;
-    calibrateString();
-  }).catch(()=>{
-    document.getElementById('calPrompt').textContent='Microphone access denied — please allow mic access';
+    calActive=true;
+    calSamples=[];
+    renderCalStrings();
+    collectCalString(i);
+  }).catch(()=>{});
+}
+function collectCalString(i){
+  if(!calActive||calStringIdx!==i)return;
+  const startTime=Date.now();
+  const duration=2000;
+  function loop(){
+    if(!calActive||calStringIdx!==i)return;
+    const elapsed=Date.now()-startTime;
+    const pct=Math.min(100,elapsed/duration*100);
+    const fillEl=document.getElementById('calFill'+i);
+    if(fillEl)fillEl.style.width=pct+'%';
+    const buf=new Float32Array(8192);
+    calAn.getFloatTimeDomainData(buf);
+    let rms=0;for(let j=0;j<buf.length;j++)rms+=buf[j]*buf[j];rms=Math.sqrt(rms/buf.length);
+    const freqData=new Float32Array(calAn.frequencyBinCount);
+    calAn.getFloatFrequencyData(freqData);
+    if(rms>0.01)calSamples.push({rms,freqData:freqData.slice()});
+    if(elapsed>=duration){
+      processCalString(i);
+      return;
+    }
+    calFrame=requestAnimationFrame(loop);
+  }
+  calFrame=requestAnimationFrame(loop);
+}
+function processCalString(i){
+  const s=CAL_STRINGS[i];
+  stopCalMic();
+  if(calSamples.length<5){
+    const el=document.getElementById('calResult'+i);
+    if(el)el.innerHTML='<span style="color:var(--rose)">No signal — try again</span>';
+    renderCalStrings();
+    return;
+  }
+  const sr=44100;
+  const binHz=sr/8192;
+  const avgRms=calSamples.reduce((a,b)=>a+b.rms,0)/calSamples.length;
+  const avgMag=new Float32Array(Math.floor(8192/2));
+  calSamples.forEach(({freqData})=>{
+    for(let j=0;j<avgMag.length;j++) avgMag[j]+=Math.pow(10,freqData[j]/20);
   });
+  for(let j=0;j<avgMag.length;j++) avgMag[j]/=calSamples.length;
+  const expectedBin=Math.round(s.openFreq/binHz);
+  const searchRange=Math.round(expectedBin*0.15);
+  let fundBin=expectedBin,fundVal=0;
+  for(let b=Math.max(1,expectedBin-searchRange);b<=Math.min(avgMag.length-1,expectedBin+searchRange);b++){
+    if(avgMag[b]>fundVal){fundVal=avgMag[b];fundBin=b;}
+  }
+  const detectedFreq=fundBin*binHz;
+  const inharmonicityHz=detectedFreq-s.openFreq;
+  const h2Bin=Math.round(fundBin*2);
+  const h3Bin=Math.round(fundBin*3);
+  const h2Val=h2Bin<avgMag.length?avgMag[h2Bin]:0;
+  const h3Val=h3Bin<avgMag.length?avgMag[h3Bin]:0;
+  const h2Ratio=fundVal>0?h2Val/fundVal:0;
+  const h3Ratio=fundVal>0?h3Val/fundVal:0;
+  const peakRms=Math.max(...calSamples.map(s=>s.rms));
+  let decayMs=calSamples.length*16;
+  for(let j=calSamples.length-1;j>=0;j--){
+    if(calSamples[j].rms>peakRms*0.3){decayMs=(j+1)*16;break;}
+  }
+  calProfile[i]={
+    rmsThreshold:Math.max(0.01,avgRms*0.4),
+    rmsWaitThreshold:Math.max(0.008,avgRms*0.3),
+    harmonicWeight:Math.min(0.9,Math.max(0.1,h2Ratio)),
+    stabilityMs:Math.min(120,Math.max(20,decayMs*0.04)),
+    inharmonicityHz,
+    avgRms,h2Ratio,h3Ratio,decayMs,detectedFreq
+  };
+  calDone=true;
+  calStringIdx=-1;
+  renderCalStrings();
 }
 function stopCalMic(){
   if(calFrame)cancelAnimationFrame(calFrame);
@@ -450,179 +501,9 @@ function stopCalMic(){
   if(calCtx)calCtx.close();
   calCtx=null;calAn=null;calStream=null;calFrame=null;calActive=false;
 }
-function calibrateString(){
-  if(calStringIdx>=CAL_STRINGS.length){finishCalibration();return;}
-  const s=CAL_STRINGS[calStringIdx];
-  calSamples=[];
-  calActive=true;
-  renderCalStrings();
-  document.getElementById('calRestartBtn').disabled=false;
-  document.getElementById('calPrompt').innerHTML=
-    `<span style="color:var(--gold);font-size:16px;font-weight:500">Play open ${s.name} string (${s.note})</span><br>
-     <span style="font-size:12px;color:var(--hint)">Hold the note clearly for 2 seconds</span>`;
-
-  // Collect 2 seconds of data
-  const startTime=Date.now();
-  const duration=2000;
-
-  function collectLoop(){
-    if(!calActive){return;}
-    const elapsed=Date.now()-startTime;
-    const pct=Math.min(100,elapsed/duration*100);
-    document.getElementById('calFill'+calStringIdx).style.width=pct+'%';
-    document.getElementById('calStat'+calStringIdx).textContent=Math.round(pct)+'%';
-
-    // Collect RMS and FFT data
-    const buf=new Float32Array(8192);
-    calAn.getFloatTimeDomainData(buf);
-    let rms=0;for(let i=0;i<buf.length;i++)rms+=buf[i]*buf[i];rms=Math.sqrt(rms/buf.length);
-
-    const freqData=new Float32Array(calAn.frequencyBinCount);
-    calAn.getFloatFrequencyData(freqData);
-
-    if(rms>0.01) calSamples.push({rms,freqData:freqData.slice()});
-
-    if(elapsed>=duration){
-      processCalString();
-      return;
-    }
-    calFrame=requestAnimationFrame(collectLoop);
-  }
-  calFrame=requestAnimationFrame(collectLoop);
-}
-
-function processCalString(){
-  const s=CAL_STRINGS[calStringIdx];
-  if(calSamples.length<5){
-    // Not enough signal — mark as skipped
-    document.getElementById('calStat'+calStringIdx).innerHTML='<span style="color:var(--hint)">skipped</span>';
-    nextCalString();
-    return;
-  }
-
-  const sr=calCtx?calCtx.sampleRate:44100;
-  const binHz=sr/8192;
-
-  // Average RMS across samples
-  const avgRms=calSamples.reduce((a,b)=>a+b.rms,0)/calSamples.length;
-
-  // Average FFT magnitude
-  const avgMag=new Float32Array(calAn.frequencyBinCount);
-  calSamples.forEach(({freqData})=>{
-    for(let i=0;i<freqData.length;i++) avgMag[i]+=Math.pow(10,freqData[i]/20);
-  });
-  for(let i=0;i<avgMag.length;i++) avgMag[i]/=calSamples.length;
-
-  // Find fundamental bin (search ±15% around expected frequency)
-  const expectedBin=Math.round(s.openFreq/binHz);
-  const searchRange=Math.round(expectedBin*0.15);
-  let fundBin=expectedBin,fundVal=0;
-  for(let b=Math.max(1,expectedBin-searchRange);b<=expectedBin+searchRange;b++){
-    if(avgMag[b]>fundVal){fundVal=avgMag[b];fundBin=b;}
-  }
-  const detectedFreq=fundBin*binHz;
-  const inharmonicityHz=detectedFreq-s.openFreq;
-
-  // H2 and H3 magnitudes
-  const h2Bin=Math.round(fundBin*2);
-  const h3Bin=Math.round(fundBin*3);
-  const h2Val=h2Bin<avgMag.length?avgMag[h2Bin]:0;
-  const h3Val=h3Bin<avgMag.length?avgMag[h3Bin]:0;
-  const h2Ratio=fundVal>0?h2Val/fundVal:0;
-  const h3Ratio=fundVal>0?h3Val/fundVal:0;
-
-  // Decay time — how long RMS stays above 30% of peak
-  const peakRms=Math.max(...calSamples.map(s=>s.rms));
-  const decayThreshold=peakRms*0.3;
-  let decayMs=calSamples.length*16; // rough estimate (60fps)
-  for(let i=calSamples.length-1;i>=0;i--){
-    if(calSamples[i].rms>decayThreshold){decayMs=(i+1)*16;break;}
-  }
-
-  // Build profile for this string
-  calProfile[calStringIdx]={
-    rmsThreshold: Math.max(0.01, avgRms*0.4), // 40% of avg RMS
-    rmsWaitThreshold: Math.max(0.008, avgRms*0.3), // 30% for wait-for-note
-    harmonicWeight: Math.min(0.9, Math.max(0.1, h2Ratio)), // clamp 0.1-0.9
-    stabilityMs: Math.min(120, Math.max(20, decayMs*0.04)), // 4% of decay
-    inharmonicityHz,
-    // Diagnostics for display
-    avgRms, h2Ratio, h3Ratio, decayMs, detectedFreq, inharmonicityHz
-  };
-
-  document.getElementById('calStat'+calStringIdx).innerHTML='<span style="color:var(--green)">✓</span>';
-
-  // Show Next button — don't auto-advance, wait for user to confirm silence
-  const isLast=calStringIdx===CAL_STRINGS.length-1;
-  document.getElementById('calPrompt').innerHTML=`
-    <span style="color:var(--green);font-size:15px">✓ ${CAL_STRINGS[calStringIdx].name} string captured</span><br>
-    <span style="font-size:12px;color:var(--hint)">Let the string ring out, then click when ready</span><br>
-    <button class="btn btn-gold" onclick="nextCalString()" style="margin-top:10px">
-      ${isLast?'Finish calibration':'Next string →'}
-    </button>`;
-}
-
-function nextCalString(){
-  document.getElementById('calRestartBtn').disabled=true;
-  calStringIdx++;
-  if(calStringIdx<CAL_STRINGS.length){
-    calibrateString();
-  } else {
-    finishCalibration();
-  }
-}
-function skipString(){
-  calActive=false;
-  if(calFrame)cancelAnimationFrame(calFrame);
-  document.getElementById('calStat'+calStringIdx).innerHTML='<span style="color:var(--hint)">skipped</span>';
-  const isLast=calStringIdx===CAL_STRINGS.length-1;
-  document.getElementById('calPrompt').innerHTML=`
-    <span style="color:var(--hint);font-size:15px">Skipped ${CAL_STRINGS[calStringIdx].name} string</span><br>
-    <button class="btn" onclick="nextCalString()" style="margin-top:10px">
-      ${isLast?'Finish calibration':'Next string →'}
-    </button>`;
-}
-function restartCurrentString(){
-  if(calStringIdx<0||calStringIdx>=CAL_STRINGS.length)return;
-  calActive=false;
-  if(calFrame)cancelAnimationFrame(calFrame);
-  document.getElementById('calFill'+calStringIdx).style.width='0%';
-  document.getElementById('calStat'+calStringIdx).textContent='waiting';
-  document.getElementById('calRestartBtn').disabled=true;
-  calibrateString();
-}
-function finishCalibration(){
-  calActive=false;calDone=true;
-  stopCalMic();
-  document.getElementById('calBtn').disabled=false;
-  document.getElementById('calSkipBtn').disabled=true;
-  document.getElementById('calBtn').textContent='Recalibrate';
-  document.getElementById('calPrompt').innerHTML='<span style="color:var(--green)">✓ Calibration complete — detection optimised for your guitar</span>';
-  renderCalStrings();
-  renderCalTable();
-}
-function renderCalTable(){
-  document.getElementById('calResults').style.display='';
-  document.getElementById('calTableBody').innerHTML=CAL_STRINGS.map((s,i)=>{
-    const p=calProfile[i];
-    if(!p.avgRms) return `<tr><td>${s.name}</td><td>${s.note}</td><td colspan="5" style="color:var(--hint)">skipped</td></tr>`;
-    const h2Class=p.h2Ratio>0.6?'warn':'good';
-    const decayClass=p.decayMs<400?'warn':'good';
-    return `<tr>
-      <td>${s.name}</td>
-      <td style="color:var(--gold)">${s.note}</td>
-      <td class="good">${p.avgRms.toFixed(3)}</td>
-      <td class="${h2Class}">${p.h2Ratio.toFixed(2)}</td>
-      <td>${p.h3Ratio.toFixed(2)}</td>
-      <td class="${decayClass}">${p.decayMs}ms</td>
-      <td>${p.inharmonicityHz>0?'+':''}${p.inharmonicityHz.toFixed(1)}Hz</td>
-    </tr>`;
-  }).join('');
-}
 
 // ── Get calibration profile for a given midi note ────────────────────────
 function getCalProfile(midi){
-  // Find closest open string
   let bestIdx=0,bestDist=999;
   CAL_STRINGS.forEach((s,i)=>{
     const dist=Math.abs(midi-s.midi);
@@ -1369,7 +1250,7 @@ function clearMelody(){
 }
 
 // ── Build number — incremented by Claude each time a new index.html is generated ─
-const BUILD=3;
+const BUILD=4;
 
 drawFretboard(null);
 initSampler();
