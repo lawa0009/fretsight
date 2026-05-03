@@ -66,6 +66,16 @@
   .rec-dot{width:8px;height:8px;border-radius:50%;background:var(--hint);transition:background 0.2s;flex-shrink:0}
   .rec-dot.on{background:var(--rose);animation:blink 1s infinite}
   @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+  @keyframes barPulse{0%,100%{transform:scaleX(0.3);opacity:0.5}50%{transform:scaleX(1);opacity:1}}
+  .rec-bars{display:flex;gap:3px;align-items:flex-end;height:24px;margin-left:8px;opacity:0;transition:opacity 0.3s}
+  .rec-bars.on{opacity:1}
+  .rec-bar{width:4px;border-radius:2px;background:var(--green);transform-origin:bottom}
+  .rec-bar:nth-child(1){height:10px;animation:barPulse 0.7s ease-in-out infinite 0.0s}
+  .rec-bar:nth-child(2){height:18px;animation:barPulse 0.7s ease-in-out infinite 0.1s}
+  .rec-bar:nth-child(3){height:24px;animation:barPulse 0.7s ease-in-out infinite 0.2s}
+  .rec-bar:nth-child(4){height:18px;animation:barPulse 0.7s ease-in-out infinite 0.3s}
+  .rec-bar:nth-child(5){height:10px;animation:barPulse 0.7s ease-in-out infinite 0.4s}
+  .rec-bars:not(.on) .rec-bar{animation:none}
   @keyframes noteFlash{0%{color:#4cff90;transform:scale(1.15)}50%{color:#4cff90;}100%{color:var(--violet);transform:scale(1)}}
   .big-note{font-family:'Cormorant Garamond',serif;font-size:72px;font-weight:600;color:var(--violet);min-width:120px;line-height:1;}
   .big-note.flash{animation:noteFlash 0.4s ease-out forwards;}
@@ -121,8 +131,17 @@
     <div id="recordPanel">
       <p class="hint">Play notes one at a time into your mic — each note is captured and added to your melody.</p>
       <div class="row" style="margin-top:12px">
-        <button class="btn btn-gold" id="recBtn" onclick="toggleRecord()">Start mic</button>
-        <button class="btn" onclick="undoNote()" id="undoBtn" disabled>Undo last</button>
+        <button class="btn btn-gold" id="recBtn" onclick="toggleRecord()">Record</button>
+        <div class="rec-bars" id="recBars">
+          <div class="rec-bar"></div>
+          <div class="rec-bar"></div>
+          <div class="rec-bar"></div>
+          <div class="rec-bar"></div>
+          <div class="rec-bar"></div>
+        </div>
+        <button class="btn" id="nextNoteBtn" onclick="nextRecordedNote()" disabled>Next</button>
+        <button class="btn" id="restartRecBtn" onclick="restartRecording()" disabled>Restart</button>
+        <button class="btn" onclick="undoNote()" id="undoBtn" disabled>Undo</button>
         <button class="btn" onclick="clearMelody()">Clear</button>
         <div class="rec-dot" id="recDot"></div>
         <span id="recStatus" class="hint">Not recording</span>
@@ -197,7 +216,7 @@
     FretSight · Sound powered by <span style="color:var(--gold)">Tone.js</span> with real acoustic guitar samples &mdash;
     <span id="soundInfo">loading...</span>
   </div>
-  <div style="font-size:11px;color:var(--hint);text-align:center;padding:0.25rem 0 1rem;opacity:0.5;font-family:'Outfit',sans-serif" id="versionFooter"></div>
+  <div style="font-size:22px;color:#ffffff;text-align:center;padding:0.25rem 0 1rem;font-family:'Outfit',sans-serif" id="versionFooter"></div>
 
   <!-- Calibration modal -->
   <div id="calOverlay" class="cal-overlay" style="display:none" onclick="if(event.target===this)closeCalibration()">
@@ -215,12 +234,13 @@
       </div>
 
       <div id="calPrompt" style="text-align:center;padding:1rem 0;font-size:14px;color:var(--hint)">
-        Press Start to begin calibration
+        Select a string to calibrate, or press Start to go through all strings
       </div>
 
       <div class="row" style="margin-top:1rem;gap:10px">
-        <button class="btn btn-gold" id="calBtn" onclick="startCalibration()">Start calibration</button>
+        <button class="btn btn-gold" id="calBtn" onclick="startCalibration()">Start all</button>
         <button class="btn" id="calSkipBtn" onclick="skipString()" disabled>Skip string</button>
+        <button class="btn" id="calRestartBtn" onclick="restartCurrentString()" disabled>Re-record</button>
         <button class="btn" onclick="closeCalibration()" style="margin-left:auto">Close</button>
       </div>
 
@@ -404,8 +424,8 @@ function startCalibration(){
   calStringIdx=0;
   document.getElementById('calBtn').disabled=true;
   document.getElementById('calSkipBtn').disabled=false;
+  document.getElementById('calRestartBtn').disabled=true;
   document.getElementById('calResults').style.display='none';
-  // Reset profile
   calProfile=CAL_STRINGS.map(()=>({...defaultProfile}));
   calDone=false;
   startCalMic();
@@ -436,6 +456,7 @@ function calibrateString(){
   calSamples=[];
   calActive=true;
   renderCalStrings();
+  document.getElementById('calRestartBtn').disabled=false;
   document.getElementById('calPrompt').innerHTML=
     `<span style="color:var(--gold);font-size:16px;font-weight:500">Play open ${s.name} string (${s.note})</span><br>
      <span style="font-size:12px;color:var(--hint)">Hold the note clearly for 2 seconds</span>`;
@@ -542,6 +563,7 @@ function processCalString(){
 }
 
 function nextCalString(){
+  document.getElementById('calRestartBtn').disabled=true;
   calStringIdx++;
   if(calStringIdx<CAL_STRINGS.length){
     calibrateString();
@@ -559,6 +581,15 @@ function skipString(){
     <button class="btn" onclick="nextCalString()" style="margin-top:10px">
       ${isLast?'Finish calibration':'Next string →'}
     </button>`;
+}
+function restartCurrentString(){
+  if(calStringIdx<0||calStringIdx>=CAL_STRINGS.length)return;
+  calActive=false;
+  if(calFrame)cancelAnimationFrame(calFrame);
+  document.getElementById('calFill'+calStringIdx).style.width='0%';
+  document.getElementById('calStat'+calStringIdx).textContent='waiting';
+  document.getElementById('calRestartBtn').disabled=true;
+  calibrateString();
 }
 function finishCalibration(){
   calActive=false;calDone=true;
@@ -1187,6 +1218,22 @@ function waitLoop(){
   waitFrame=requestAnimationFrame(waitLoop);
 }
 
+function nextRecordedNote(){
+  // Manually advance to next note slot — stops current mic and readies for next note
+  if(isRec)stopRecord();
+  document.getElementById('recStatus').textContent='Ready for next note — press Record';
+}
+function restartRecording(){
+  // Clear melody and restart fresh
+  if(isRec)stopRecord();
+  melody=[];idx=0;renderRecTags();
+  document.getElementById('undoBtn').disabled=true;
+  document.getElementById('nextNoteBtn').disabled=true;
+  document.getElementById('restartRecBtn').disabled=true;
+  document.getElementById('melodyBadge').style.display='none';
+  document.getElementById('progressLabel').textContent='—';
+  document.getElementById('recStatus').textContent='Restarted — press Record to begin';
+}
 function toggleRecord(){if(isRec)stopRecord();else startRecord();}
 function startRecord(){
   // Safari is strict about constraints — use simple true first, then try enhanced
@@ -1208,9 +1255,10 @@ function startRecord(){
     recAn.smoothingTimeConstant=0.4;
     recCtx.createMediaStreamSource(stream).connect(recAn);
     micStream=stream;isRec=true;
-    document.getElementById('recBtn').textContent='Stop mic';
+    document.getElementById('recBtn').textContent='Stop';
     document.getElementById('recBtn').className='btn btn-danger';
     document.getElementById('recDot').classList.add('on');
+    document.getElementById('recBars').classList.add('on');
     document.getElementById('recStatus').textContent='Recording — play each note clearly, hold ~0.5s';
     recLoop();
   })
@@ -1226,9 +1274,10 @@ function stopRecord(){
   isRec=false;stableNote=-1;stableStart=0;if(recFrame)cancelAnimationFrame(recFrame);
   if(micStream)micStream.getTracks().forEach(t=>t.stop());
   if(recCtx)recCtx.close();
-  document.getElementById('recBtn').textContent='Start mic';
+  document.getElementById('recBtn').textContent='Record';
   document.getElementById('recBtn').className='btn btn-gold';
   document.getElementById('recDot').classList.remove('on');
+  document.getElementById('recBars').classList.remove('on');
   document.getElementById('recStatus').textContent='Not recording';
   const freqEl=document.getElementById('liveFreq');
   freqEl.textContent='—';freqEl.style.opacity='0';
@@ -1270,6 +1319,8 @@ function recLoop(){
         detectionLog.push(`${ts} | ${APP_VERSION} | session ${testSession} | ${name}${oct} (midi ${midi}) | YIN=${ac} | HPS=${hps} | ${status}`);
         renderRecTags();
         document.getElementById('undoBtn').disabled=false;
+        document.getElementById('nextNoteBtn').disabled=false;
+        document.getElementById('restartRecBtn').disabled=false;
         document.getElementById('progressLabel').textContent='0 / '+melody.length;
         document.getElementById('logCount').textContent=detectionLog.length+' entries';
       }
@@ -1318,7 +1369,7 @@ function clearMelody(){
 }
 
 // ── Build number — incremented by Claude each time a new index.html is generated ─
-const BUILD=2;
+const BUILD=3;
 
 drawFretboard(null);
 initSampler();
