@@ -1306,7 +1306,10 @@ function clearMelody(){
 
 drawFretboard(null);
 initSampler();
-document.getElementById('versionFooter').textContent=APP_VERSION;
+// Session load counter — increments each page load, resets when browser session ends
+const loadCount=(parseInt(sessionStorage.getItem('fsLoadCount')||'0')+1);
+sessionStorage.setItem('fsLoadCount',loadCount);
+document.getElementById('versionFooter').textContent=`${APP_VERSION} · session load #${loadCount}`;
 </script>
 </body>
 </html>
