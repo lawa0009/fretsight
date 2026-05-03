@@ -530,13 +530,21 @@ function processCalString(){
   };
 
   document.getElementById('calStat'+calStringIdx).innerHTML='<span style="color:var(--green)">✓</span>';
-  nextCalString();
+
+  // Show Next button — don't auto-advance, wait for user to confirm silence
+  const isLast=calStringIdx===CAL_STRINGS.length-1;
+  document.getElementById('calPrompt').innerHTML=`
+    <span style="color:var(--green);font-size:15px">✓ ${CAL_STRINGS[calStringIdx].name} string captured</span><br>
+    <span style="font-size:12px;color:var(--hint)">Let the string ring out, then click when ready</span><br>
+    <button class="btn btn-gold" onclick="nextCalString()" style="margin-top:10px">
+      ${isLast?'Finish calibration':'Next string →'}
+    </button>`;
 }
 
 function nextCalString(){
   calStringIdx++;
   if(calStringIdx<CAL_STRINGS.length){
-    setTimeout(()=>calibrateString(),500);
+    calibrateString();
   } else {
     finishCalibration();
   }
@@ -545,7 +553,12 @@ function skipString(){
   calActive=false;
   if(calFrame)cancelAnimationFrame(calFrame);
   document.getElementById('calStat'+calStringIdx).innerHTML='<span style="color:var(--hint)">skipped</span>';
-  nextCalString();
+  const isLast=calStringIdx===CAL_STRINGS.length-1;
+  document.getElementById('calPrompt').innerHTML=`
+    <span style="color:var(--hint);font-size:15px">Skipped ${CAL_STRINGS[calStringIdx].name} string</span><br>
+    <button class="btn" onclick="nextCalString()" style="margin-top:10px">
+      ${isLast?'Finish calibration':'Next string →'}
+    </button>`;
 }
 function finishCalibration(){
   calActive=false;calDone=true;
@@ -1304,12 +1317,12 @@ function clearMelody(){
   document.getElementById('progressLabel').textContent='—';
 }
 
+// ── Build number — incremented by Claude each time a new index.html is generated ─
+const BUILD=1;
+
 drawFretboard(null);
 initSampler();
-// Session load counter — increments each page load, resets when browser session ends
-const loadCount=(parseInt(sessionStorage.getItem('fsLoadCount')||'0')+1);
-sessionStorage.setItem('fsLoadCount',loadCount);
-document.getElementById('versionFooter').textContent=`${APP_VERSION} · session load #${loadCount}`;
+document.getElementById('versionFooter').textContent=`${APP_VERSION} · build ${BUILD}`;
 </script>
 </body>
 </html>
