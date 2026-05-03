@@ -686,34 +686,66 @@ function finishPractice(){
   renderTeleprompter();
 }
 
-function autoCorrelate(buf,sr){
-  // RMS threshold — 0.04 filters background noise and room ambience
+function yinDetect(buf, sr){
+  // RMS gate
   let rms=0;for(let i=0;i<buf.length;i++)rms+=buf[i]*buf[i];rms=Math.sqrt(rms/buf.length);
   if(rms<0.04)return -1;
 
-  // Clip detection — trim silence from edges
-  let r1=0,r2=buf.length-1;
-  for(let i=0;i<buf.length/2;i++){if(Math.abs(buf[i])<0.15){r1=i;break;}}
-  for(let i=1;i<buf.length/2;i++){if(Math.abs(buf[buf.length-i])<0.15){r2=buf.length-i;break;}}
-  const b2=buf.slice(r1,r2);const sz=b2.length;if(sz<2)return -1;
+  const N=buf.length;
+  const halfN=Math.floor(N/2);
 
-  // Autocorrelation
-  const c=new Float32Array(sz).fill(0);
-  for(let i=0;i<sz;i++)for(let j=0;j<sz-i;j++)c[i]+=b2[j]*b2[j+i];
+  // Min/max lag from guitar frequency range (E2=82Hz to E5=659Hz + headroom)
+  const minLag=Math.floor(sr/1400); // ~32 samples
+  const maxLag=Math.floor(sr/75);   // ~588 samples
 
-  // Find first dip then peak
-  let d=0;while(d<sz-1&&c[d]>c[d+1])d++;
-  let mx=-1,mp=-1;for(let i=d;i<sz;i++)if(c[i]>mx){mx=c[i];mp=i;}
-  if(mp<1||mp>=sz-1)return -1;
+  // Step 1 — Difference function
+  const d=new Float32Array(halfN);
+  for(let tau=1;tau<halfN;tau++){
+    for(let j=0;j<halfN;j++){
+      const delta=buf[j]-buf[j+tau];
+      d[tau]+=delta*delta;
+    }
+  }
 
-  // Parabolic interpolation for better precision
-  let T0=mp;
-  const x1=c[T0-1],x2=c[T0],x3=c[T0+1];
-  const a=(x1+x3-2*x2)/2,bv=(x3-x1)/2;if(a)T0-=bv/(2*a);
+  // Step 2 — Cumulative mean normalised difference function (CMNDF)
+  const cmndf=new Float32Array(halfN);
+  cmndf[0]=1;
+  let runSum=0;
+  for(let tau=1;tau<halfN;tau++){
+    runSum+=d[tau];
+    cmndf[tau]=runSum>0?d[tau]*tau/runSum:1;
+  }
 
-  const freq=sr/T0;
+  // Step 3 — Absolute threshold — find first dip below 0.15
+  const threshold=0.15;
+  let tau=-1;
+  for(let t=minLag;t<=maxLag;t++){
+    if(cmndf[t]<threshold){
+      // Find local minimum in this dip
+      while(t+1<=maxLag&&cmndf[t+1]<cmndf[t])t++;
+      tau=t;
+      break;
+    }
+  }
 
-  // Sanity check — guitar range E2 (82Hz) to E5 (659Hz) with headroom
+  // Step 4 — If no threshold crossing, take global minimum in range
+  if(tau===-1){
+    let minVal=Infinity;
+    for(let t=minLag;t<=maxLag;t++){
+      if(cmndf[t]<minVal){minVal=cmndf[t];tau=t;}
+    }
+    // Reject if minimum is too high — not a periodic signal
+    if(minVal>0.35)return -1;
+  }
+
+  if(tau<2||tau>=halfN-1)return -1;
+
+  // Step 5 — Parabolic interpolation for sub-sample accuracy
+  const x1=cmndf[tau-1],x2=cmndf[tau],x3=cmndf[tau+1];
+  const denom=x1-2*x2+x3;
+  const tauRefined=denom!==0?tau-0.5*(x3-x1)/denom:tau;
+
+  const freq=sr/tauRefined;
   if(freq<75||freq>1400)return -1;
   return freq;
 }
@@ -777,7 +809,7 @@ function hpsDetect(analyser, sr){
 // ── Consensus pitch detection ────────────────────────────────────────────
 // Returns {freq, f1, f2, agreed, midi} or null if no signal
 function detectPitch(buf, sr, analyser){
-  const f1=autoCorrelate(buf,sr);
+  const f1=yinDetect(buf,sr);
   const f2=hpsDetect(analyser,sr);
 
   let freq=-1, agreed=false;
@@ -924,7 +956,7 @@ function recLoop(){
         const ac=f1>0?f1.toFixed(2)+'Hz':'—';
         const hps=f2>0?f2.toFixed(2)+'Hz':'—';
         const status=agreed?'AGREE':(f1>0&&f2>0?'DISAGREE':'SINGLE');
-        detectionLog.push(`${ts} | ${APP_VERSION} | session ${testSession} | ${name}${oct} (midi ${midi}) | AC=${ac} | HPS=${hps} | ${status}`);
+        detectionLog.push(`${ts} | ${APP_VERSION} | session ${testSession} | ${name}${oct} (midi ${midi}) | YIN=${ac} | HPS=${hps} | ${status}`);
         renderRecTags();
         document.getElementById('undoBtn').disabled=false;
         document.getElementById('progressLabel').textContent='0 / '+melody.length;
@@ -946,7 +978,7 @@ function renderRecTags(){
 }
 function downloadLog(){
   if(!detectionLog.length){alert('No log entries yet — record some notes first.');return;}
-  const header='FretSight Detection Log\nVersion: '+APP_VERSION+'\nGenerated: '+new Date().toLocaleString()+'\nFormat: timestamp | version | session | note | autocorrelation freq | HPS freq | agreement\n'+'─'.repeat(80)+'\nSESSION 1 started — page load\n'+'─'.repeat(80)+'\n';
+  const header='FretSight Detection Log\nVersion: '+APP_VERSION+'\nGenerated: '+new Date().toLocaleString()+'\nFormat: timestamp | version | session | note | YIN freq | HPS freq | agreement\n'+'─'.repeat(80)+'\nSESSION 1 started — page load\n'+'─'.repeat(80)+'\n';
   const blob=new Blob([header+detectionLog.join('\n')],{type:'text/plain'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
