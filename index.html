@@ -728,13 +728,14 @@ function hpsDetect(analyser, sr){
   const minBin=Math.max(1,Math.floor(75/binHz));
   const maxBin=Math.min(binCount-1,Math.ceil(1400/binHz));
 
-  // HPS — multiply magnitude at harmonics 1x–5x
-  // Only search up to maxBin/5 so all harmonics stay in range
-  const hpsMax=Math.floor(maxBin/5);
+  // HPS — use 3 harmonics for high frequencies (>250Hz), 5 for low
+  // Fewer harmonics on high E avoids locking onto 2nd/3rd harmonic instead of fundamental
+  const harmonics=freq>250?3:5;
+  const hpsMax=Math.floor(maxBin/harmonics);
   let bestVal=0,bestBin=minBin;
   for(let k=minBin;k<=hpsMax;k++){
     let val=mag[k];
-    for(let h=2;h<=5;h++){
+    for(let h=2;h<=harmonics;h++){
       const hk=Math.round(k*h);
       if(hk<binCount) val*=mag[hk];
     }
@@ -749,7 +750,7 @@ function hpsDetect(analyser, sr){
     const hps=new Float32Array(hpsMax+1);
     for(let k=minBin;k<=hpsMax;k++){
       let v=mag[k];
-      for(let h=2;h<=5;h++){const hk=Math.round(k*h);if(hk<binCount)v*=mag[hk];}
+      for(let h=2;h<=harmonics;h++){const hk=Math.round(k*h);if(hk<binCount)v*=mag[hk];}
       hps[k]=v;
     }
     const y1=hps[bestBin-1],y2=hps[bestBin],y3=hps[bestBin+1];
@@ -770,13 +771,23 @@ function detectPitch(buf, sr, analyser){
   if(f1>0&&f2>0){
     const m1=Math.round(12*Math.log2(f1/440)+69);
     const m2=Math.round(12*Math.log2(f2/440)+69);
-    if(Math.abs(m1-m2)<=1){freq=(f1+f2)/2;agreed=true;}
+    if(Math.abs(m1-m2)<=2){freq=(f1+f2)/2;agreed=true;}
     else{freq=m1<45?f2:f1;agreed=false;}
   } else if(f1>0){freq=f1;}
     else if(f2>0){freq=f2;}
 
   if(freq<75||freq>1400)return null;
-  const midi=Math.round(12*Math.log2(freq/440)+69);
+
+  // ── Octave correction for high E string ──────────────────────────────
+  // High E notes (E4=330Hz to E5=659Hz). If detected midi > 76 (E5)
+  // but below 88 (E6), we're likely one octave too high — halve the frequency.
+  let midi=Math.round(12*Math.log2(freq/440)+69);
+  if(midi>76&&midi<88){
+    // Check if halved frequency lands in valid guitar high E range (midi 64-76)
+    const halvMidi=Math.round(12*Math.log2((freq/2)/440)+69);
+    if(halvMidi>=64&&halvMidi<=76){freq=freq/2;midi=halvMidi;}
+  }
+
   return{freq,f1:f1>0?f1:-1,f2:f2>0?f2:-1,agreed,midi};
 }
 
