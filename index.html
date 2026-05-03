@@ -372,18 +372,18 @@ function playSynthNote(midi){
 function openCalibration(){
   document.getElementById('calOverlay').style.display='flex';
   renderCalStrings();
-  // Open mic once on modal open — instant response when Record is clicked
-  if(!calStream){
-    navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
-      calCtx=new AudioContext();
-      try{stream.getAudioTracks()[0].applyConstraints({echoCancellation:false,noiseSuppression:false,autoGainControl:false}).catch(()=>{});}catch(e){}
-      calAn=calCtx.createAnalyser();
-      calAn.fftSize=8192;
-      calAn.smoothingTimeConstant=0.3;
-      calCtx.createMediaStreamSource(stream).connect(calAn);
-      calStream=stream;
-    }).catch(()=>{});
-  }
+  // Open mic once — reused for all strings
+  navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
+    calCtx=new AudioContext();
+    try{stream.getAudioTracks()[0].applyConstraints({echoCancellation:false,noiseSuppression:false,autoGainControl:false}).catch(()=>{});}catch(e){}
+    calAn=calCtx.createAnalyser();
+    calAn.fftSize=8192;
+    calAn.smoothingTimeConstant=0.3;
+    calCtx.createMediaStreamSource(stream).connect(calAn);
+    calStream=stream;
+  }).catch(()=>{
+    alert('Mic access denied — please allow microphone access and reopen calibration');
+  });
 }
 function closeCalibration(){
   stopCalMic();
@@ -394,44 +394,61 @@ function renderCalStrings(){
   document.getElementById('calStrings').innerHTML=CAL_STRINGS.map((s,i)=>{
     const p=calProfile[i];
     const done=p.avgRms!==undefined;
-    return`<div class="cal-string-row" id="calRow${i}">
+    const isRecording=calActive&&calStringIdx===i;
+    return`<div class="cal-string-row${isRecording?' cal-active':''}" id="calRow${i}">
       <div class="cal-note">${s.note}</div>
       <div style="font-size:13px;color:var(--muted);min-width:52px">${s.name}</div>
-      <div class="cal-bar"><div class="cal-fill" id="calFill${i}" style="width:${done?'100%':'0%'}"></div></div>
+      <div class="cal-bar"><div class="cal-fill" id="calFill${i}" style="width:${isRecording?0:done?100:0}%"></div></div>
       <div id="calResult${i}" style="font-size:11px;font-family:'Outfit',sans-serif;min-width:180px;padding-left:8px">
-        ${done?`<span style="color:var(--green)">✓</span> RMS ${p.avgRms.toFixed(3)} · H2 ${p.h2Ratio.toFixed(2)} · ${p.decayMs}ms`:'<span style="color:var(--hint)">not calibrated</span>'}
+        ${isRecording?'<span style="color:var(--gold)">recording...</span>':done?`<span style="color:var(--green)">✓</span> RMS ${p.avgRms.toFixed(3)} · H2 ${p.h2Ratio.toFixed(2)} · ${p.decayMs}ms`:'<span style="color:var(--hint)">not calibrated</span>'}
       </div>
-      <button class="btn ${calActive&&calStringIdx===i?'btn-danger':''}" id="calRecBtn${i}"
-        onclick="toggleCalString(${i})" style="font-size:12px;padding:5px 12px;min-width:70px">
-        ${calActive&&calStringIdx===i?'Stop':'Record'}
+      <button class="btn${isRecording?' btn-danger':''}" id="calRecBtn${i}"
+        onclick="toggleCalString(${i})" style="font-size:12px;padding:5px 12px;min-width:70px"
+        ${calActive&&!isRecording?'disabled':''}>
+        ${isRecording?'Stop':'Record'}
       </button>
     </div>`;
   }).join('');
 }
 function toggleCalString(i){
+  if(!calStream||!calAn){
+    alert('Mic not ready yet — please wait a moment and try again');
+    return;
+  }
   if(calActive&&calStringIdx===i){
-    // Stop current recording
+    // Stop this recording
     calActive=false;
     if(calFrame){cancelAnimationFrame(calFrame);calFrame=null;}
     calStringIdx=-1;
     renderCalStrings();
     return;
   }
-  // Stop any other running string — but keep the mic stream open
-  if(calActive){
-    calActive=false;
-    if(calFrame){cancelAnimationFrame(calFrame);calFrame=null;}
-  }
+  // Start recording this string
   calStringIdx=i;
   calSamples=[];
   calActive=true;
   renderCalStrings();
-  collectCalString(i); // mic already open — start immediately
+  const startTime=Date.now();
+  const duration=2000;
+  function loop(){
+    if(!calActive||calStringIdx!==i)return;
+    const elapsed=Date.now()-startTime;
+    const pct=Math.min(100,elapsed/duration*100);
+    const fillEl=document.getElementById('calFill'+i);
+    if(fillEl)fillEl.style.width=pct+'%';
+    const buf=new Float32Array(8192);
+    calAn.getFloatTimeDomainData(buf);
+    let rms=0;for(let j=0;j<buf.length;j++)rms+=buf[j]*buf[j];rms=Math.sqrt(rms/buf.length);
+    const freqData=new Float32Array(calAn.frequencyBinCount);
+    calAn.getFloatFrequencyData(freqData);
+    if(rms>0.01)calSamples.push({rms,freqData:freqData.slice()});
+    if(elapsed>=duration){processCalString(i);return;}
+    calFrame=requestAnimationFrame(loop);
+  }
+  calFrame=requestAnimationFrame(loop);
 }
-function startCalStringMic(i){
-  // Legacy — no longer used, mic opens in openCalibration
-  collectCalString(i);
-}
+function startCalStringMic(i){collectCalString(i);}// legacy stub
+function collectCalString(i){toggleCalString(i);}// legacy stub
 function collectCalString(i){
   if(!calActive||calStringIdx!==i)return;
   const startTime=Date.now();
@@ -457,8 +474,11 @@ function collectCalString(i){
   calFrame=requestAnimationFrame(loop);
 }
 function processCalString(i){
+  // Stop collecting but keep mic open for next string
+  calActive=false;
+  if(calFrame){cancelAnimationFrame(calFrame);calFrame=null;}
+  calStringIdx=-1;
   const s=CAL_STRINGS[i];
-  stopCalMic();
   if(calSamples.length<5){
     const el=document.getElementById('calResult'+i);
     if(el)el.innerHTML='<span style="color:var(--rose)">No signal — try again</span>';
@@ -1261,7 +1281,7 @@ function clearMelody(){
 }
 
 // ── Build number — incremented by Claude each time a new index.html is generated ─
-const BUILD=5;
+const BUILD=6;
 
 drawFretboard(null);
 initSampler();
