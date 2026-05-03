@@ -372,6 +372,18 @@ function playSynthNote(midi){
 function openCalibration(){
   document.getElementById('calOverlay').style.display='flex';
   renderCalStrings();
+  // Open mic once on modal open — instant response when Record is clicked
+  if(!calStream){
+    navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
+      calCtx=new AudioContext();
+      try{stream.getAudioTracks()[0].applyConstraints({echoCancellation:false,noiseSuppression:false,autoGainControl:false}).catch(()=>{});}catch(e){}
+      calAn=calCtx.createAnalyser();
+      calAn.fftSize=8192;
+      calAn.smoothingTimeConstant=0.3;
+      calCtx.createMediaStreamSource(stream).connect(calAn);
+      calStream=stream;
+    }).catch(()=>{});
+  }
 }
 function closeCalibration(){
   stopCalMic();
@@ -399,29 +411,26 @@ function renderCalStrings(){
 function toggleCalString(i){
   if(calActive&&calStringIdx===i){
     // Stop current recording
-    stopCalMic();
+    calActive=false;
+    if(calFrame){cancelAnimationFrame(calFrame);calFrame=null;}
     calStringIdx=-1;
     renderCalStrings();
     return;
   }
-  if(calActive) stopCalMic(); // stop any other running string
+  // Stop any other running string — but keep the mic stream open
+  if(calActive){
+    calActive=false;
+    if(calFrame){cancelAnimationFrame(calFrame);calFrame=null;}
+  }
   calStringIdx=i;
-  startCalStringMic(i);
+  calSamples=[];
+  calActive=true;
+  renderCalStrings();
+  collectCalString(i); // mic already open — start immediately
 }
 function startCalStringMic(i){
-  navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
-    calCtx=new AudioContext();
-    try{stream.getAudioTracks()[0].applyConstraints({echoCancellation:false,noiseSuppression:false,autoGainControl:false}).catch(()=>{});}catch(e){}
-    calAn=calCtx.createAnalyser();
-    calAn.fftSize=8192;
-    calAn.smoothingTimeConstant=0.3;
-    calCtx.createMediaStreamSource(stream).connect(calAn);
-    calStream=stream;
-    calActive=true;
-    calSamples=[];
-    renderCalStrings();
-    collectCalString(i);
-  }).catch(()=>{});
+  // Legacy — no longer used, mic opens in openCalibration
+  collectCalString(i);
 }
 function collectCalString(i){
   if(!calActive||calStringIdx!==i)return;
@@ -496,10 +505,12 @@ function processCalString(i){
   renderCalStrings();
 }
 function stopCalMic(){
-  if(calFrame)cancelAnimationFrame(calFrame);
+  // Full teardown — called on modal close only
+  calActive=false;
+  if(calFrame){cancelAnimationFrame(calFrame);calFrame=null;}
   if(calStream)calStream.getTracks().forEach(t=>t.stop());
   if(calCtx)calCtx.close();
-  calCtx=null;calAn=null;calStream=null;calFrame=null;calActive=false;
+  calCtx=null;calAn=null;calStream=null;
 }
 
 // ── Get calibration profile for a given midi note ────────────────────────
@@ -1250,7 +1261,7 @@ function clearMelody(){
 }
 
 // ── Build number — incremented by Claude each time a new index.html is generated ─
-const BUILD=4;
+const BUILD=5;
 
 drawFretboard(null);
 initSampler();
