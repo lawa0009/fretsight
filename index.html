@@ -253,14 +253,30 @@ const EH={'Db':'C#','Eb':'D#','Gb':'F#','Ab':'G#','Bb':'A#','Cb':'B','Fb':'E','B
 const OPEN_MIDI=[64,59,55,50,45,40];
 const SNAMES=['E4','B3','G3','D3','A2','E2'];
 
-// ── Deployment version — update this string each time you push ───────────
+// ── Deployment version ───────────────────────────────────────────────────
 const APP_VERSION='1.0.2.0.0';
 
-// Layout — headstock from x=0..110, nut at 120, frets from 120 onward
-const HEAD_W=110;   // headstock width
-const NUT_X=120;    // nut position
-const STR_Y=[30,52,74,96,118,140];  // 6 strings, more spread for bigger fretboard
-const FRET_X=[120,172,224,276,328,380,432,484,536,588,640,692,744,796]; // 13 frets (0=nut,1-12)
+// ── Calibration constants — declared early so all functions can access ───
+const CAL_STRINGS=[
+  {name:'Low E', note:'E2', midi:40, openFreq:82.41},
+  {name:'A',     note:'A2', midi:45, openFreq:110.00},
+  {name:'D',     note:'D3', midi:50, openFreq:146.83},
+  {name:'G',     note:'G3', midi:55, openFreq:196.00},
+  {name:'B',     note:'B3', midi:59, openFreq:246.94},
+  {name:'High E',note:'E4', midi:64, openFreq:329.63},
+];
+const defaultProfile={rmsThreshold:0.04,rmsWaitThreshold:0.03,harmonicWeight:0.5,stabilityMs:60,inharmonicityHz:0};
+let calProfile=CAL_STRINGS.map(()=>({...defaultProfile}));
+let calDone=false;
+let calCtx=null,calAn=null,calStream=null,calFrame=null;
+let calStringIdx=-1,calActive=false;
+let calSamples=[];
+
+// Layout
+const HEAD_W=110;
+const NUT_X=120;
+const STR_Y=[30,52,74,96,118,140];
+const FRET_X=[120,172,224,276,328,380,432,484,536,588,640,692,744,796];
 
 function fretCX(s,f){
   if(f===0)return NUT_X-16; // open string — between nut and headstock
@@ -834,24 +850,6 @@ let lastRecMidi=-1,lastRecTime=0;
 let stableNote=-1,stableStart=0;
 let detectionLog=[];
 let testSession=1;
-
-// ── Calibration profile — default values, overwritten after calibration ──
-const CAL_STRINGS=[
-  {name:'Low E', note:'E2', midi:40, openFreq:82.41},
-  {name:'A',     note:'A2', midi:45, openFreq:110.00},
-  {name:'D',     note:'D3', midi:50, openFreq:146.83},
-  {name:'G',     note:'G3', midi:55, openFreq:196.00},
-  {name:'B',     note:'B3', midi:59, openFreq:246.94},
-  {name:'High E',note:'E4', midi:64, openFreq:329.63},
-];
-const defaultProfile={rmsThreshold:0.04,harmonicWeight:0.5,stabilityMs:60,inharmonicityHz:0};
-let calProfile=CAL_STRINGS.map(()=>({...defaultProfile}));
-let calDone=false;
-
-// ── Calibration state ────────────────────────────────────────────────────
-let calCtx=null,calAn=null,calStream=null,calFrame=null;
-let calStringIdx=-1,calActive=false;
-let calSamples=[]; // collected RMS + spectral data during calibration window
 
 function setTab(t){
   document.getElementById('recordPanel').style.display=t==='record'?'':'none';
