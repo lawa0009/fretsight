@@ -771,9 +771,7 @@ function detectPitch(buf, sr, analyser){
   if(f1>0&&f2>0){
     const m1=Math.round(12*Math.log2(f1/440)+69);
     const m2=Math.round(12*Math.log2(f2/440)+69);
-    // Compare raw frequencies — agree if within 0.5 semitones (~2.9%)
-    const ratio=Math.max(f1,f2)/Math.min(f1,f2);
-    if(ratio<Math.pow(2,0.5/12)){freq=(f1+f2)/2;agreed=true;}
+    if(Math.abs(m1-m2)<=1){freq=(f1+f2)/2;agreed=true;}
     else{freq=m1<45?f2:f1;agreed=false;}
   } else if(f1>0){freq=f1;}
     else if(f2>0){freq=f2;}
