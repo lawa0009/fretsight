@@ -949,9 +949,9 @@ function recLoop(){
       freqEl.style.color=agreed?'var(--teal)':'var(--gold)';
     }
     if(midi===stableNote){
-      const stabilityMs=midi<45?60:midi>64?35:50;
-      // Same note locked out for 600ms — prevents double trigger on sustained notes
-      const debounceMs=midi===lastRecMidi?600:400;
+      const stabilityMs=midi<45?80:midi>64?45:60;
+      // Same note: 800ms lockout — different note: 500ms — optimised for slow playing
+      const debounceMs=midi===lastRecMidi?800:500;
       if((now-stableStart)>stabilityMs && (now-lastRecTime)>debounceMs){
         lastRecMidi=midi;lastRecTime=now;stableNote=-1;
         const name=NOTES[midi%12],oct=Math.floor(midi/12)-1;
