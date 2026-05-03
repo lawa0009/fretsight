@@ -447,32 +447,6 @@ function toggleCalString(i){
   }
   calFrame=requestAnimationFrame(loop);
 }
-function startCalStringMic(i){collectCalString(i);}// legacy stub
-function collectCalString(i){toggleCalString(i);}// legacy stub
-function collectCalString(i){
-  if(!calActive||calStringIdx!==i)return;
-  const startTime=Date.now();
-  const duration=4000;
-  function loop(){
-    if(!calActive||calStringIdx!==i)return;
-    const elapsed=Date.now()-startTime;
-    const pct=Math.min(100,elapsed/duration*100);
-    const fillEl=document.getElementById('calFill'+i);
-    if(fillEl)fillEl.style.width=pct+'%';
-    const buf=new Float32Array(8192);
-    calAn.getFloatTimeDomainData(buf);
-    let rms=0;for(let j=0;j<buf.length;j++)rms+=buf[j]*buf[j];rms=Math.sqrt(rms/buf.length);
-    const freqData=new Float32Array(calAn.frequencyBinCount);
-    calAn.getFloatFrequencyData(freqData);
-    if(rms>0.01)calSamples.push({rms,freqData:freqData.slice()});
-    if(elapsed>=duration){
-      processCalString(i);
-      return;
-    }
-    calFrame=requestAnimationFrame(loop);
-  }
-  calFrame=requestAnimationFrame(loop);
-}
 function processCalString(i){
   // Stop collecting but keep mic open for next string
   calActive=false;
@@ -1291,7 +1265,7 @@ function clearMelody(){
 }
 
 // ── Build number — incremented by Claude each time a new index.html is generated ─
-const BUILD=9;
+const BUILD=10;
 
 drawFretboard(null);
 initSampler();
