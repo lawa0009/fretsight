@@ -716,8 +716,8 @@ function yinDetect(buf, sr){
     cmndf[tau]=runSum>0?d[tau]*tau/runSum:1;
   }
 
-  // Step 3 — Absolute threshold — find first dip below 0.15
-  const threshold=0.15;
+  // Step 3 — Absolute threshold — stricter 0.10 reduces false dips at mid frequencies
+  const threshold=0.10;
   let tau=-1;
   for(let t=minLag;t<=maxLag;t++){
     if(cmndf[t]<threshold){
@@ -728,14 +728,17 @@ function yinDetect(buf, sr){
     }
   }
 
-  // Step 4 — If no threshold crossing, take global minimum in range
+  // Step 4 — If no threshold crossing, fallback only for low strings
+  // For high frequencies (>250Hz) YIN returns -1 and lets HPS handle it alone
+  // This prevents spurious periodicity in fast-decaying high E notes producing wrong notes
   if(tau===-1){
+    const freqAtMinLag=sr/minLag;
+    if(freqAtMinLag>250) return -1; // above 250Hz — no guessing, trust HPS
     let minVal=Infinity;
     for(let t=minLag;t<=maxLag;t++){
       if(cmndf[t]<minVal){minVal=cmndf[t];tau=t;}
     }
-    // Reject if minimum is too high — not a periodic signal
-    if(minVal>0.35)return -1;
+    if(minVal>0.20)return -1; // tighter than before (was 0.35)
   }
 
   if(tau<2||tau>=halfN-1)return -1;
@@ -947,7 +950,9 @@ function recLoop(){
     }
     if(midi===stableNote){
       const stabilityMs=midi<45?60:midi>64?35:50;
-      if((now-stableStart)>stabilityMs && midi!==lastRecMidi && (now-lastRecTime)>400){
+      // Same note locked out for 600ms — prevents double trigger on sustained notes
+      const debounceMs=midi===lastRecMidi?600:400;
+      if((now-stableStart)>stabilityMs && (now-lastRecTime)>debounceMs){
         lastRecMidi=midi;lastRecTime=now;stableNote=-1;
         const name=NOTES[midi%12],oct=Math.floor(midi/12)-1;
         melody.push({name,oct,midi});
