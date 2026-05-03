@@ -58,7 +58,6 @@
   .note-pill.current .pn{color:var(--violet)}
   .note-pill.upcoming{opacity:0.3}
   .big-display{display:flex;align-items:center;gap:1.5rem;padding:1rem 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin:0.75rem 0}
-  .big-note{font-family:'Cormorant Garamond',serif;font-size:72px;font-weight:600;color:var(--violet);min-width:120px;line-height:1}
   .note-meta .pos{font-size:17px;color:var(--text);margin-bottom:4px;font-weight:500}
   .note-meta .det{font-size:14px;color:var(--hint);font-family:'Outfit',sans-serif}
   .speed-row{display:flex;align-items:center;gap:10px}
@@ -67,6 +66,9 @@
   .rec-dot{width:8px;height:8px;border-radius:50%;background:var(--hint);transition:background 0.2s;flex-shrink:0}
   .rec-dot.on{background:var(--rose);animation:blink 1s infinite}
   @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+  @keyframes noteFlash{0%{color:var(--green);transform:scale(1.12)}60%{color:var(--green)}100%{color:var(--violet);transform:scale(1)}}
+  .big-note{font-family:'Cormorant Garamond',serif;font-size:72px;font-weight:600;color:var(--violet);min-width:120px;line-height:1;transition:color 0.15s;}
+  .big-note.flash{animation:noteFlash 0.35s ease-out forwards;}
   .rec-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;min-height:26px}
   .rec-tag{font-size:12px;font-family:'Outfit',sans-serif;padding:2px 8px;border-radius:4px;background:var(--gold-dim);color:var(--gold);border:1px solid rgba(201,168,76,0.25);font-weight:500}
   .controls-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:0.75rem}
@@ -619,6 +621,13 @@ function renderTeleprompter(){
   if(cur)cur.scrollIntoView({inline:'center',behavior:'smooth'});
 }
 
+function flashNote(){
+  const el=document.getElementById('bigNote');
+  el.classList.remove('flash');
+  void el.offsetWidth; // force reflow so animation restarts
+  el.classList.add('flash');
+  setTimeout(()=>el.classList.remove('flash'),350);
+}
 function showCurrentNote(){
   if(idx>=melody.length){finishPractice();return;}
   const n=melody[idx],key=n.name+n.oct;
@@ -631,6 +640,7 @@ function showCurrentNote(){
   playNoteSound(n.midi);
 }
 function advanceNote(){
+  flashNote();
   idx++;
   if(idx>=melody.length){finishPractice();return;}
   showCurrentNote();
@@ -728,14 +738,12 @@ function hpsDetect(analyser, sr){
   const minBin=Math.max(1,Math.floor(75/binHz));
   const maxBin=Math.min(binCount-1,Math.ceil(1400/binHz));
 
-  // HPS — use 3 harmonics for high frequencies (>250Hz), 5 for low
-  // Fewer harmonics on high E avoids locking onto 2nd/3rd harmonic instead of fundamental
-  const harmonics=freq>250?3:5;
-  const hpsMax=Math.floor(maxBin/harmonics);
+  // First pass — find peak bin using 5 harmonics
+  const hpsMax5=Math.floor(maxBin/5);
   let bestVal=0,bestBin=minBin;
-  for(let k=minBin;k<=hpsMax;k++){
+  for(let k=minBin;k<=hpsMax5;k++){
     let val=mag[k];
-    for(let h=2;h<=harmonics;h++){
+    for(let h=2;h<=5;h++){
       const hk=Math.round(k*h);
       if(hk<binCount) val*=mag[hk];
     }
@@ -745,6 +753,11 @@ function hpsDetect(analyser, sr){
   const freq=bestBin*binHz;
   if(freq<75||freq>1400)return -1;
 
+  // Use 3 harmonics for high frequencies (>250Hz) for sub-bin refinement
+  // Fewer harmonics on high E avoids locking onto harmonics instead of fundamental
+  const harmonics=freq>250?3:5;
+  const hpsMax=Math.floor(maxBin/harmonics);
+
   // Parabolic interpolation for sub-bin accuracy
   if(bestBin>0&&bestBin<hpsMax){
     const hps=new Float32Array(hpsMax+1);
@@ -753,7 +766,7 @@ function hpsDetect(analyser, sr){
       for(let h=2;h<=harmonics;h++){const hk=Math.round(k*h);if(hk<binCount)v*=mag[hk];}
       hps[k]=v;
     }
-    const y1=hps[bestBin-1],y2=hps[bestBin],y3=hps[bestBin+1];
+    const y1=hps[bestBin-1]??0,y2=hps[bestBin]??0,y3=hps[bestBin+1]??0;
     const denom=y1-2*y2+y3;
     const refined=denom!==0?bestBin-0.5*(y3-y1)/denom:bestBin;
     return Math.max(75,Math.min(1400,refined*binHz));
@@ -825,6 +838,7 @@ function waitLoop(){
     document.getElementById('detNote').textContent='hearing: '+dn+dOct;
     if(midi===melody[idx].midi){
       document.getElementById('matchBadge').innerHTML='<span class="badge badge-green">Match!</span>';
+      flashNote();
       stopWaitMic();
       setTimeout(()=>{document.getElementById('matchBadge').innerHTML='';advanceNote();},300);
       return;
