@@ -112,6 +112,7 @@
   <span class="tagline">See it · Hear it · Learn it</span>
   <span style="margin-left:auto;font-size:11px;color:var(--hint);font-family:'DM Mono',monospace">standard tuning · E A D G B e</span>
   <button class="btn" onclick="openCalibration()" style="font-size:12px;padding:6px 14px">⚙ Calibrate guitar</button>
+  <span id="calBadge" style="display:none;font-size:11px;color:var(--green);font-family:'Outfit',sans-serif;font-weight:600">✓ calibrated</span>
   <span id="soundBadge" class="sound-badge loading">loading guitar samples...</span>
 </header>
 
@@ -370,6 +371,7 @@ function playSynthNote(midi){
 function openCalibration(){
   document.getElementById('calOverlay').style.display='flex';
   renderCalStrings();
+  updateCalBadge();
   // Open mic once — reused for all strings
   navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
     calCtx=new AudioContext();
@@ -520,6 +522,9 @@ function processCalString(i){
   };
   calDone=true;
   calStringIdx=-1;
+  // Save to localStorage so profile persists across sessions
+  try{localStorage.setItem('fretSightCalProfile',JSON.stringify(calProfile));}catch(e){}
+  updateCalBadge();
   renderCalStrings();
 }
 function stopCalMic(){
@@ -532,6 +537,13 @@ function stopCalMic(){
 }
 
 // ── Get calibration profile for a given midi note ────────────────────────
+function updateCalBadge(){
+  const badge=document.getElementById('calBadge');
+  if(!badge)return;
+  const anyDone=calProfile.some(p=>p.avgRms>0);
+  badge.textContent=anyDone?'✓ calibrated':'';
+  badge.style.display=anyDone?'inline':'none';
+}
 function getCalProfile(midi){
   let bestIdx=0,bestDist=999;
   CAL_STRINGS.forEach((s,i)=>{
@@ -1279,11 +1291,23 @@ function clearMelody(){
 }
 
 // ── Build number — incremented by Claude each time a new index.html is generated ─
-const BUILD=8;
+const BUILD=9;
 
 drawFretboard(null);
 initSampler();
+// Load saved calibration profile if available
+try{
+  const saved=localStorage.getItem('fretSightCalProfile');
+  if(saved){
+    const parsed=JSON.parse(saved);
+    if(parsed&&parsed.length===CAL_STRINGS.length){
+      calProfile=parsed;
+      calDone=calProfile.some(p=>p.avgRms>0);
+    }
+  }
+}catch(e){}
 document.getElementById('versionFooter').textContent=`${APP_VERSION} · build ${BUILD}`;
+updateCalBadge();
 </script>
 </body>
 </html>
