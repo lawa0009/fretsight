@@ -1114,22 +1114,6 @@ function waitLoop(){
   waitFrame=requestAnimationFrame(waitLoop);
 }
 
-function nextRecordedNote(){
-  // Manually advance to next note slot — stops current mic and readies for next note
-  if(isRec)stopRecord();
-  document.getElementById('recStatus').textContent='Ready for next note — press Record';
-}
-function restartRecording(){
-  // Clear melody and restart fresh
-  if(isRec)stopRecord();
-  melody=[];idx=0;renderRecTags();
-  document.getElementById('undoBtn').disabled=true;
-  document.getElementById('nextNoteBtn').disabled=true;
-  document.getElementById('restartRecBtn').disabled=true;
-  document.getElementById('melodyBadge').style.display='none';
-  document.getElementById('progressLabel').textContent='—';
-  document.getElementById('recStatus').textContent='Restarted — press Record to begin';
-}
 function toggleRecord(){if(isRec)stopRecord();else startRecord();}
 function startRecord(){
   // Safari is strict about constraints — use simple true first, then try enhanced
@@ -1198,13 +1182,15 @@ function recLoop(){
       freqEl.style.opacity='1';
       freqEl.style.color=agreed?'var(--teal)':'var(--gold)';
     }
-    if(midi===stableNote){
+    if(now-lastRecTime < (lastRecMidi===midi?1500:500)){
+      // Hard lockout — block all detection during debounce window
+      stableNote=-1;
+    } else if(midi===stableNote){
       const calP=calDone?getCalProfile(midi):null;
-      const stabilityMs=calP?calP.stabilityMs:(midi<45?80:midi>64?45:60);
-      // Same note: 1200ms lockout — different note: 500ms
-      const debounceMs=midi===lastRecMidi?1200:500;
-      if((now-stableStart)>stabilityMs && (now-lastRecTime)>debounceMs){
-        lastRecMidi=midi;lastRecTime=now;stableNote=-1;
+      // Wider stability window around E3 boundary (midi 52 = E3 = 164Hz)
+      const stabilityMs=calP?calP.stabilityMs:(midi<45?80:midi===52?100:midi>64?45:60);
+      if((now-stableStart)>stabilityMs){
+        lastRecMidi=midi;lastRecTime=now;stableNote=-1;stableStart=0;
         const name=NOTES[midi%12],oct=Math.floor(midi/12)-1;
         melody.push({name,oct,midi});
         // ── Log entry ──
@@ -1215,8 +1201,6 @@ function recLoop(){
         detectionLog.push(`${ts} | ${APP_VERSION} | session ${testSession} | ${name}${oct} (midi ${midi}) | YIN=${ac} | HPS=${hps} | ${status}`);
         renderRecTags();
         document.getElementById('undoBtn').disabled=false;
-        document.getElementById('nextNoteBtn').disabled=false;
-        document.getElementById('restartRecBtn').disabled=false;
         document.getElementById('progressLabel').textContent='0 / '+melody.length;
         document.getElementById('logCount').textContent=detectionLog.length+' entries';
       }
@@ -1265,7 +1249,7 @@ function clearMelody(){
 }
 
 // ── Build number — incremented by Claude each time a new index.html is generated ─
-const BUILD=10;
+const BUILD=13;
 
 drawFretboard(null);
 initSampler();
