@@ -788,6 +788,7 @@ let micStream=null,recFrame=null,isRec=false,recCtx=null,recAn=null;
 let playTimer=null,waitCtx=null,waitAn=null,waitStream=null,waitFrame=null;
 let lastRecMidi=-1,lastRecTime=0;
 let stableNote=-1,stableStart=0;
+let lastRms=0,lastPeakRms=0;
 let detectionLog=[];
 let testSession=1;
 
@@ -1134,7 +1135,7 @@ function startRecord(){
     recAn.fftSize=8192;
     recAn.smoothingTimeConstant=0.4;
     recCtx.createMediaStreamSource(stream).connect(recAn);
-    micStream=stream;isRec=true;
+    micStream=stream;isRec=true;lastRms=0;lastPeakRms=0;
     document.getElementById('recBtn').textContent='Stop';
     document.getElementById('recBtn').className='btn btn-danger';
     document.getElementById('recDot').classList.add('on');
@@ -1151,7 +1152,7 @@ function startRecord(){
   });
 }
 function stopRecord(){
-  isRec=false;stableNote=-1;stableStart=0;if(recFrame)cancelAnimationFrame(recFrame);
+  isRec=false;stableNote=-1;stableStart=0;lastRms=0;lastPeakRms=0;if(recFrame)cancelAnimationFrame(recFrame);
   if(micStream)micStream.getTracks().forEach(t=>t.stop());
   if(recCtx)recCtx.close();
   document.getElementById('recBtn').textContent='Record';
@@ -1171,26 +1172,31 @@ function stopRecord(){
 function recLoop(){
   if(!isRec)return;
   const buf=new Float32Array(8192);recAn.getFloatTimeDomainData(buf);
+
+  // Track RMS to detect attack vs decay
+  let rms=0;for(let i=0;i<buf.length;i++)rms+=buf[i]*buf[i];rms=Math.sqrt(rms/buf.length);
+  const isAttack=rms>lastRms*1.15; // RMS rising by >15% = new attack
+  lastRms=rms;
+
   const result=detectPitch(buf,recCtx.sampleRate,recAn);
   const freqEl=document.getElementById('liveFreq');
   if(result){
     const{freq,f1,f2,agreed,midi}=result,now=Date.now();
-    // Only show frequency if both algorithms fired or they agree — filters noise
     const confident=(f1>0&&f2>0)||agreed;
     if(confident){
       freqEl.textContent=freq.toFixed(1)+' Hz';
       freqEl.style.opacity='1';
       freqEl.style.color=agreed?'var(--teal)':'var(--gold)';
     }
-    if(now-lastRecTime < (lastRecMidi===midi?1500:500)){
-      // Hard lockout — block all detection during debounce window
+    if(now-lastRecTime < (lastRecMidi===midi?1500:midi<55?800:500)){
       stableNote=-1;
     } else if(midi===stableNote){
       const calP=calDone?getCalProfile(midi):null;
-      // Wider stability window around E3 boundary (midi 52 = E3 = 164Hz)
       const stabilityMs=calP?calP.stabilityMs:(midi<45?80:midi===52?100:midi>64?45:60);
-      if((now-stableStart)>stabilityMs){
+      // Only accept if signal is in attack phase or peak — not decaying sustain
+      if((now-stableStart)>stabilityMs && (isAttack||rms>lastPeakRms*0.85)){
         lastRecMidi=midi;lastRecTime=now;stableNote=-1;stableStart=0;
+        lastPeakRms=rms; // record peak at moment of acceptance
         const name=NOTES[midi%12],oct=Math.floor(midi/12)-1;
         melody.push({name,oct,midi});
         // ── Log entry ──
@@ -1249,7 +1255,7 @@ function clearMelody(){
 }
 
 // ── Build number — incremented by Claude each time a new index.html is generated ─
-const BUILD=13;
+const BUILD=15;
 
 drawFretboard(null);
 initSampler();
